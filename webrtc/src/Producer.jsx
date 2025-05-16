@@ -63,8 +63,15 @@ function App() {
             }
         });
         // 실제 미디어 전송 시작 이벤트
-        producerTransport.on('produce', ({kind, rtpParameters}, callback) => {
-            socket.emit('produce', {kind, rtpParameters}, callback);
+        producerTransport.on('produce', async ({kind, rtpParameters}, callback, errback) => {
+            try {
+                const { producerId  } = await new Promise((resolve) => {
+                    socket.emit('produce', {kind, rtpParameters}, resolve);
+                });
+                callback({ id: producerId });
+            } catch (error) {
+                errback(error);
+            }
         });
 
         return producerTransport;

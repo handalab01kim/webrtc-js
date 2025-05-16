@@ -33,7 +33,7 @@ function App() {
         // device 생성, rtpCapabilities 등록
         const device = await createDevice();
 
-
+        console.log("MYDEBG0");
         // Consumer transport
         const consumerTransportInfo = await new Promise((res) =>
             socket.emit('createConsumerTransport', res)
@@ -56,10 +56,12 @@ function App() {
             kind: consumerInfo.kind,
             rtpParameters: consumerInfo.rtpParameters,
         });
+        console.log("MYDEBG1");
 
         const newStream = new MediaStream();
         newStream.addTrack(consumer.track);
         remoteVideo.current.srcObject = newStream;
+        console.log("MYDEBG2");
     }
 
     useEffect(() => {
@@ -73,7 +75,7 @@ function App() {
             {/*<h2>Local Webcam</h2>*/}
             {/*<video ref={webcamVideo} autoPlay playsInline muted width="320"/>*/}
             {/*<h2>Remote Stream</h2>*/}
-            {/*<video ref={remoteVideo} autoPlay playsInline width="320"/>*/}
+            <video ref={remoteVideo} autoPlay playsInline width="320"/>
         </div>
     );
 
