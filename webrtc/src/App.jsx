@@ -1,16 +1,39 @@
-import React, {useEffect} from 'react';
+import React from 'react';
 import Producer from './Producer';
 import Consumer from './Consumer';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-function App() {
+import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
+import './styles.css';
 
+function App() {
     return (
         <BrowserRouter>
-            <Routes>
-                <Route path="/" element={<Consumer />}></Route>
-                <Route path="/producer" element={<Producer />}></Route>
-                <Route path="*" element={<div>not found</div>}></Route>
-            </Routes>
+            <div className="app-container">
+                <header className="app-header">
+                    <h1>WebRTC SFU 데모</h1>
+                    <nav className="app-nav">
+                        <Link to="/" className="nav-link">Consumer (시청자)</Link>
+                        <Link to="/producer" className="nav-link">Producer (방송자)</Link>
+                    </nav>
+                </header>
+
+                <main className="app-content">
+                    <Routes>
+                        <Route path="/" element={<Consumer />} />
+                        <Route path="/producer" element={<Producer />} />
+                        <Route path="*" element={
+                            <div className="not-found">
+                                <h2>페이지를 찾을 수 없습니다</h2>
+                                <p>요청하신 페이지가 존재하지 않습니다.</p>
+                                <Link to="/" className="back-link">홈으로 돌아가기</Link>
+                            </div>
+                        } />
+                    </Routes>
+                </main>
+
+                <footer className="app-footer">
+                    <p>WebRTC SFU 데모 - Mediasoup 기반 1:n 스트리밍</p>
+                </footer>
+            </div>
         </BrowserRouter>
     );
 }

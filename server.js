@@ -9,11 +9,23 @@ const io = new Server(server, {
     cors: {origin: '*'},
 });
 
-let worker, router, transportProducer, transportConsumer, transport;
-let producerStreaming = null;
+// Mediasoup objects
+let worker;
+let router;
+let producerTransport;
+let producer = null;
+
+// Store consumer transports and consumers
+const consumerTransports = new Map();
+const consumers = new Map();
 
 async function startMediasoup() {
-    worker = await mediasoup.createWorker();
+    worker = await mediasoup.createWorker({
+        logLevel: 'warn',
+        rtcMinPort: 10000,
+        rtcMaxPort: 10100,
+    });
+
     router = await worker.createRouter({
         mediaCodecs: [
             {
@@ -22,18 +34,34 @@ async function startMediasoup() {
                 clockRate: 90000,
                 parameters: {},
             },
+            {
+                kind: 'audio',
+                mimeType: 'audio/opus',
+                clockRate: 48000,
+                channels: 2,
+                parameters: {},
+            },
         ],
     });
+
+    console.log('Mediasoup worker and router created');
 }
 
-// 여러 consumer를 관리하기 위한 Map 추가
-const consumers = new Map();
-
 io.on('connection', async (socket) => {
-    console.log('Client connected');
+    console.log('Client connected:', socket.id);
 
+    // Clean up on disconnect
     socket.on('disconnect', () => {
-        // consumer 정리
+        console.log('Client disconnected:', socket.id);
+
+        // Close and remove consumer transport
+        const transport = consumerTransports.get(socket.id);
+        if (transport) {
+            transport.close();
+            consumerTransports.delete(socket.id);
+        }
+
+        // Close and remove consumer
         const consumer = consumers.get(socket.id);
         if (consumer) {
             consumer.close();
@@ -41,86 +69,16 @@ io.on('connection', async (socket) => {
         }
     });
 
-    socket.on('getRtpCapabilities', (cb) => {
-        cb(router.rtpCapabilities);
+    // Return router RTP capabilities
+    socket.on('getRtpCapabilities', (callback) => {
+        console.log('Get RTP Capabilities');
+        callback(router.rtpCapabilities);
     });
 
-    socket.on('createTransport', async (cb) => {
-        if (transport) return;
-        transport = await router.createWebRtcTransport({
-            // announcedIp: null => 내부망
-            listenIps: [{ip: '127.0.0.1', announcedIp: null}],
-            enableUdp: true,
-            enableTcp: true,
-            preferUdp: true,
-        });
-
-        transport.on('dtlsstatechange', dtlsState => {
-            if (dtlsState === 'closed') transport.close();
-        });
-
-        const transportType = transportProducer ? 'consumer' : 'producer';
-        if (transportType === 'producer') transportProducer = transport;
-        // else transportConsumer = transport;
-        else {
-            console.log("MYDEBUG**");
-            return;
-        }
-
-        cb({
-            id: transport.id,
-            iceParameters: transport.iceParameters,
-            iceCandidates: transport.iceCandidates,
-            dtlsParameters: transport.dtlsParameters,
-        });
-
-        socket.on('connectTransport', async ({dtlsParameters}) => {
-            if (transport._isConnected) return;
-            // await transport.connect({ dtlsParameters });
-            try {
-                console.log("MYDEBUG_connect?");
-                await transport.connect({dtlsParameters});
-                transport._isConnected = true; // flag로 1회만 실행
-            } catch (err) {
-                console.error("connectTransport error:", err);
-            }
-        });
-
-        if (transportType === 'producer') {
-            console.log("MYDEBUG0", transportType);
-            socket.on('produce', async ({kind, rtpParameters}, cb) => {
-                console.log("MYDEBUG");
-                const producer = await transport.produce({kind, rtpParameters}); // 영상 송출 시작
-                console.log("MYDEBUG2");
-                producerStreaming = producer;
-                cb({id: producer.id});
-                console.log("MYDEBUG3");
-            });
-        } else {
-            socket.on('consume', async ({rtpCapabilities}, cb) => {
-                if (!router.canConsume({producerId: transportProducer.producers[0].id, rtpCapabilities})) {
-                    return cb({error: 'Cannot consume'});
-                }
-
-                const consumer = await transport.consume({
-                    producerId: transportProducer.producers[0].id,
-                    rtpCapabilities,
-                });
-
-                cb({
-                    id: consumer.id,
-                    kind: consumer.kind,
-                    rtpParameters: consumer.rtpParameters,
-                });
-
-                consumer.resume();
-            });
-        }
-    });
-
-
-    socket.on('createConsumerTransport', async (cb) => {
+    // Create producer transport
+    socket.on('createProducerTransport', async (callback) => {
         try {
+            // Create a new WebRTC transport
             const transport = await router.createWebRtcTransport({
                 listenIps: [{ ip: '127.0.0.1', announcedIp: null }],
                 enableUdp: true,
@@ -128,64 +86,182 @@ io.on('connection', async (socket) => {
                 preferUdp: true,
             });
 
-            transport.on('dtlsstatechange', dtlsState => {
+            console.log('Producer transport created:', transport.id);
+
+            // Store the transport
+            producerTransport = transport;
+
+            // Monitor transport state
+            transport.on('dtlsstatechange', (dtlsState) => {
+                console.log('Producer transport DTLS state changed to', dtlsState);
                 if (dtlsState === 'closed') {
                     transport.close();
-                    consumers.delete(socket.id);
                 }
             });
 
-            transportConsumer = transport;
-
-            cb({
+            // Return transport parameters to client
+            callback({
                 id: transport.id,
                 iceParameters: transport.iceParameters,
                 iceCandidates: transport.iceCandidates,
                 dtlsParameters: transport.dtlsParameters,
             });
+        } catch (error) {
+            console.error('Error creating producer transport:', error);
+            callback({ error: error.message });
+        }
+    });
 
-            socket.on('consume', async ({ rtpCapabilities }, cb) => {
-                if (!producerStreaming) {
-                    return cb({ error: 'No producer available' });
-                }
+    // Connect producer transport
+    socket.on('connectProducerTransport', async ({ dtlsParameters }, callback) => {
+        try {
+            await producerTransport.connect({ dtlsParameters });
+            console.log('Producer transport connected');
+            callback({ success: true });
+        } catch (error) {
+            console.error('Error connecting producer transport:', error);
+            callback({ error: error.message });
+        }
+    });
 
-                if (!router.canConsume({
-                    producerId: producerStreaming.id,
-                    rtpCapabilities,
-                })) {
-                    return cb({ error: 'Cannot consume' });
-                }
+    // Start producing (sending media)
+    socket.on('produce', async ({ kind, rtpParameters }, callback) => {
+        try {
+            // Create producer
+            producer = await producerTransport.produce({ kind, rtpParameters });
+            console.log('Producer created:', producer.id, 'kind:', kind);
 
-                try {
-                    const consumer = await transport.consume({
-                        producerId: producerStreaming.id,
-                        rtpCapabilities,
-                    });
+            // Handle producer events
+            producer.on('transportclose', () => {
+                console.log('Producer transport closed');
+                producer = null;
+            });
 
-                    // consumer를 Map에 저장
-                    consumers.set(socket.id, consumer);
+            callback({ id: producer.id });
+        } catch (error) {
+            console.error('Error producing:', error);
+            callback({ error: error.message });
+        }
+    });
 
-                    consumer.on('producerclose', () => {
-                        consumer.close();
-                        consumers.delete(socket.id);
-                    });
 
-                    cb({
-                        id: consumer.id,
-                        producerId: producerStreaming.id,
-                        kind: consumer.kind,
-                        rtpParameters: consumer.rtpParameters,
-                    });
+    // Create consumer transport
+    socket.on('createConsumerTransport', async (callback) => {
+        try {
+            // Create a new WebRTC transport for this consumer
+            const transport = await router.createWebRtcTransport({
+                listenIps: [{ ip: '127.0.0.1', announcedIp: null }],
+                enableUdp: true,
+                enableTcp: true,
+                preferUdp: true,
+            });
 
-                    await consumer.resume();
-                } catch (error) {
-                    console.error('Consumer creation failed:', error);
-                    cb({ error: error.message });
+            console.log('Consumer transport created:', transport.id, 'for client:', socket.id);
+
+            // Store the transport with the socket ID
+            consumerTransports.set(socket.id, transport);
+
+            // Monitor transport state
+            transport.on('dtlsstatechange', (dtlsState) => {
+                console.log('Consumer transport DTLS state changed to', dtlsState);
+                if (dtlsState === 'closed') {
+                    transport.close();
                 }
             });
+
+            // Return transport parameters to client
+            callback({
+                id: transport.id,
+                iceParameters: transport.iceParameters,
+                iceCandidates: transport.iceCandidates,
+                dtlsParameters: transport.dtlsParameters,
+            });
         } catch (error) {
-            console.error('Transport creation failed:', error);
-            cb({ error: error.message });
+            console.error('Error creating consumer transport:', error);
+            callback({ error: error.message });
+        }
+    });
+
+    // Connect consumer transport
+    socket.on('connectConsumerTransport', async ({ dtlsParameters }, callback) => {
+        try {
+            const transport = consumerTransports.get(socket.id);
+            if (!transport) {
+                throw new Error('Consumer transport not found');
+            }
+
+            await transport.connect({ dtlsParameters });
+            console.log('Consumer transport connected for client:', socket.id);
+
+            if (callback) callback({ success: true });
+        } catch (error) {
+            console.error('Error connecting consumer transport:', error);
+            if (callback) callback({ error: error.message });
+        }
+    });
+
+    // Start consuming (receiving media)
+    socket.on('consume', async ({ rtpCapabilities }, callback) => {
+        try {
+            // Check if producer exists
+            if (!producer) {
+                throw new Error('No producer available');
+            }
+
+            // Check if router can consume the producer
+            if (!router.canConsume({
+                producerId: producer.id,
+                rtpCapabilities,
+            })) {
+                throw new Error('Cannot consume with current RTP capabilities');
+            }
+
+            const transport = consumerTransports.get(socket.id);
+            if (!transport) {
+                throw new Error('Consumer transport not found');
+            }
+
+            // Create consumer
+            const consumer = await transport.consume({
+                producerId: producer.id,
+                rtpCapabilities,
+                paused: true, // Start paused, resume after client setup
+            });
+
+            // Store the consumer
+            consumers.set(socket.id, consumer);
+
+            console.log('Consumer created:', consumer.id, 'for client:', socket.id);
+
+            // Handle consumer events
+            consumer.on('transportclose', () => {
+                console.log('Consumer transport closed for consumer:', consumer.id);
+                consumer.close();
+                consumers.delete(socket.id);
+            });
+
+            consumer.on('producerclose', () => {
+                console.log('Producer closed for consumer:', consumer.id);
+                consumer.close();
+                consumers.delete(socket.id);
+                socket.emit('producerClosed');
+            });
+
+            // Return consumer parameters to client
+            callback({
+                id: consumer.id,
+                producerId: producer.id,
+                kind: consumer.kind,
+                rtpParameters: consumer.rtpParameters,
+            });
+
+            // Resume the consumer
+            await consumer.resume();
+            console.log('Consumer resumed:', consumer.id);
+
+        } catch (error) {
+            console.error('Error consuming:', error);
+            callback({ error: error.message });
         }
     });
 
