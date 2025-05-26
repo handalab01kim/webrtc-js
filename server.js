@@ -26,8 +26,20 @@ async function startMediasoup() {
     });
 }
 
+// 여러 consumer를 관리하기 위한 Map 추가
+const consumers = new Map();
+
 io.on('connection', async (socket) => {
     console.log('Client connected');
+
+    socket.on('disconnect', () => {
+        // consumer 정리
+        const consumer = consumers.get(socket.id);
+        if (consumer) {
+            consumer.close();
+            consumers.delete(socket.id);
+        }
+    });
 
     socket.on('getRtpCapabilities', (cb) => {
         cb(router.rtpCapabilities);
@@ -108,59 +120,76 @@ io.on('connection', async (socket) => {
 
 
     socket.on('createConsumerTransport', async (cb) => {
-        // const transport = await router.createWebRtcTransport({
-        //     // announcedIp: null => 내부망
-        //     listenIps: [{ ip: '127.0.0.1', announcedIp: null }],
-        //     enableUdp: true,
-        //     enableTcp: true,
-        //     preferUdp: true,
-        // });
-
-        // transport.on('dtlsstatechange', dtlsState => {
-        //     if (dtlsState === 'closed') transport.close();
-        // });
-
-        // const transportType = 'consumer'
-        // if (transportType === 'producer') transportProducer = transport;
-        transportConsumer = transport;
-
-
-        cb({
-            id: transport.id,
-            iceParameters: transport.iceParameters,
-            iceCandidates: transport.iceCandidates,
-            dtlsParameters: transport.dtlsParameters,
-        });
-
-        socket.on('connectConsumerTransport', async ({dtlsParameters}) => {
-            await transport.connect({dtlsParameters});
-        });
-
-        socket.on('consume', async ({rtpCapabilities}, cb) => {
-            if (!producerStreaming) {
-                return cb({error: 'No producer available'});
-            }
-
-            if (!router.canConsume({producerId: producerStreaming.id, rtpCapabilities})) {
-                return cb({error: 'Cannot consume'});
-            }
-
-            const consumer = await transport.consume({
-                producerId: producerStreaming.id,
-                rtpCapabilities,
+        try {
+            const transport = await router.createWebRtcTransport({
+                listenIps: [{ ip: '127.0.0.1', announcedIp: null }],
+                enableUdp: true,
+                enableTcp: true,
+                preferUdp: true,
             });
+
+            transport.on('dtlsstatechange', dtlsState => {
+                if (dtlsState === 'closed') {
+                    transport.close();
+                    consumers.delete(socket.id);
+                }
+            });
+
+            transportConsumer = transport;
 
             cb({
-                id: consumer.id,
-                producerId: producerStreaming.id,
-                kind: consumer.kind,
-                rtpParameters: consumer.rtpParameters,
+                id: transport.id,
+                iceParameters: transport.iceParameters,
+                iceCandidates: transport.iceCandidates,
+                dtlsParameters: transport.dtlsParameters,
             });
 
-            consumer.resume();
-        });
+            socket.on('consume', async ({ rtpCapabilities }, cb) => {
+                if (!producerStreaming) {
+                    return cb({ error: 'No producer available' });
+                }
 
+                if (!router.canConsume({
+                    producerId: producerStreaming.id,
+                    rtpCapabilities,
+                })) {
+                    return cb({ error: 'Cannot consume' });
+                }
+
+                try {
+                    const consumer = await transport.consume({
+                        producerId: producerStreaming.id,
+                        rtpCapabilities,
+                    });
+
+                    // consumer를 Map에 저장
+                    consumers.set(socket.id, consumer);
+
+                    consumer.on('producerclose', () => {
+                        consumer.close();
+                        consumers.delete(socket.id);
+                    });
+
+                    cb({
+                        id: consumer.id,
+                        producerId: producerStreaming.id,
+                        kind: consumer.kind,
+                        rtpParameters: consumer.rtpParameters,
+                    });
+
+                    await consumer.resume();
+                } catch (error) {
+                    console.error('Consumer creation failed:', error);
+                    cb({ error: error.message });
+                }
+            });
+        } catch (error) {
+            console.error('Transport creation failed:', error);
+            cb({ error: error.message });
+        }
     });
+
+    // ... 나머지 코드 유지 ...
 });
 
 startMediasoup().then(() => {
