@@ -73,40 +73,44 @@ function App() {
             });
 
             // 미디어 소비 시작
-            setStatus('미디어 스트림 요청 중...');
-            const {id, producerId, kind, rtpParameters} = await new Promise((resolve, reject) => {
-                socket.emit('consume', {rtpCapabilities: device.rtpCapabilities}, (response) => {
-                    if (response.error) {
-                        reject(new Error(response.error));
-                    } else {
-                        resolve(response);
-                    }
-                });
+// 1. producers 목록 요청
+            const producers = await new Promise((resolve) => {
+                socket.emit('getProducers', (list) => resolve(list)); // [{kind: "video", id: "..."}]
             });
+
+// 2. 각 producer에 대해 consume 수행
+            for (const { kind, id: producerId } of producers) {
+                const { id, kind, rtpParameters } = await new Promise((resolve, reject) => {
+                    socket.emit('consume', { producerId, rtpCapabilities: device.rtpCapabilities }, (res) => {
+                        if (res.error) reject(res.error);
+                        else resolve(res);
+                    });
+                });
+
+                const consumer = await consumerTransport.consume({ id, producerId, kind, rtpParameters });
+                await consumer.resume();
+
+                consumerRef.current = consumer; // 원하면 따로 리스트에 저장해도 됨
+
+                const stream = new MediaStream([consumer.track]);
+
+                if (kind === 'video') {
+                    if (remoteVideo.current) {
+                        remoteVideo.current.srcObject = stream;
+                    }
+                    setConnected(true);
+                    setStatus('비디오 스트림 수신 중...');
+                } else if (kind === 'audio') {
+                    const audio = new Audio();
+                    audio.srcObject = stream;
+                    audio.play().catch((e) => console.warn('오디오 재생 실패:', e));
+                }
+            }
+
 
             setStatus('미디어 스트림 정보 받음');
 
-            // Consumer 생성
-            const consumer = await consumerTransport.consume({
-                id,
-                producerId,
-                kind,
-                rtpParameters
-            });
-            await consumer.resume();
 
-            consumerRef.current = consumer;
-
-            // 비디오 스트림 설정
-            const stream = new MediaStream([consumer.track]);
-            if (remoteVideo.current) {
-                console.log("MY_DEBUG1")
-                console.log(stream);
-                remoteVideo.current.srcObject = stream;
-            }
-
-            setStatus('스트림 수신 중...');
-            setConnected(true);
 
             // Producer가 닫힐 때 이벤트 처리
             socket.on('producerClosed', () => {

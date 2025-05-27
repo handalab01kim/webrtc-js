@@ -128,22 +128,23 @@ io.on('connection', async (socket) => {
     // Start producing (sending media)
     socket.on('produce', async ({ kind, rtpParameters }, callback) => {
         try {
-            // Create producer
-            producer = await producerTransport.produce({ kind, rtpParameters });
-            console.log('Producer created:', producer.id, 'kind:', kind);
+            const newProducer = await producerTransport.produce({ kind, rtpParameters });
 
-            // Handle producer events
-            producer.on('transportclose', () => {
-                console.log('Producer transport closed');
-                producer = null;
+            producers.set(kind, newProducer); // kind 기준으로 저장
+            console.log('Producer created:', newProducer.id, 'kind:', kind);
+
+            newProducer.on('transportclose', () => {
+                console.log('Producer transport closed for kind:', kind);
+                producers.delete(kind);
             });
 
-            callback({ id: producer.id });
+            callback({ id: newProducer.id });
         } catch (error) {
             console.error('Error producing:', error);
             callback({ error: error.message });
         }
     });
+
 
 
     // Create consumer transport
@@ -202,74 +203,55 @@ io.on('connection', async (socket) => {
     });
 
     socket.on('getProducers', (callback) => {
-        // 예시: 모든 producerId를 배열로 반환
-        callback([...producers.values()].map(p => p.id));
+        const list = [...producers.entries()].map(([kind, prod]) => ({
+            kind,
+            id: prod.id
+        }));
+        callback(list);
     });
 
-    // Start consuming (receiving media)
-    socket.on('consume', async ({ rtpCapabilities }, callback) => {
-        try {
-            // Check if producer exists
-            if (!producer) {
-                throw new Error('No producer available');
-            }
 
-            // Check if router can consume the producer
-            if (!router.canConsume({
-                producerId: producer.id,
-                rtpCapabilities,
-            })) {
+    // Start consuming (receiving media)
+    socket.on('consume', async ({ producerId, rtpCapabilities }, callback) => {
+        try {
+            const selectedProducer = [...producers.values()].find(p => p.id === producerId);
+            if (!selectedProducer) throw new Error('Producer not found');
+
+            if (!router.canConsume({ producerId: selectedProducer.id, rtpCapabilities })) {
                 throw new Error('Cannot consume with current RTP capabilities');
             }
 
             const transport = consumerTransports.get(socket.id);
-            if (!transport) {
-                throw new Error('Consumer transport not found');
-            }
+            if (!transport) throw new Error('Consumer transport not found');
 
-            // Create consumer
             const consumer = await transport.consume({
-                producerId: producer.id,
+                producerId: selectedProducer.id,
                 rtpCapabilities,
-                paused: true, // Start paused, resume after client setup
+                paused: true,
             });
 
-            // Store the consumer
             consumers.set(socket.id, consumer);
 
-            console.log('Consumer created:', consumer.id, 'for client:', socket.id);
-
-            // Handle consumer events
-            consumer.on('transportclose', () => {
-                console.log('Consumer transport closed for consumer:', consumer.id);
-                consumer.close();
-                consumers.delete(socket.id);
-            });
-
+            consumer.on('transportclose', () => consumers.delete(socket.id));
             consumer.on('producerclose', () => {
-                console.log('Producer closed for consumer:', consumer.id);
-                consumer.close();
                 consumers.delete(socket.id);
                 socket.emit('producerClosed');
             });
 
-            // Return consumer parameters to client
             callback({
                 id: consumer.id,
-                producerId: producer.id,
+                producerId: selectedProducer.id,
                 kind: consumer.kind,
                 rtpParameters: consumer.rtpParameters,
             });
 
-            // Resume the consumer
             await consumer.resume();
-            console.log('Consumer resumed:', consumer.id);
-
-        } catch (error) {
-            console.error('Error consuming:', error);
-            callback({ error: error.message });
+        } catch (err) {
+            console.error('Error consuming:', err);
+            callback({ error: err.message });
         }
     });
+
 
     // ... 나머지 코드 유지 ...
 });
