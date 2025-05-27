@@ -1,5 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { io } from 'socket.io-client';
+import React, {useEffect, useRef, useState} from 'react';
+import {io} from 'socket.io-client';
+import ReactPlayer from 'react-player/lazy';
+import VideoStream from './VideoStream';
 
 const mediasoupClient = await import('mediasoup-client');
 const socket = io('http://localhost:3001');
@@ -30,7 +32,7 @@ function App() {
                 });
             });
 
-            await device.load({ routerRtpCapabilities: rtpCapabilities });
+            await device.load({routerRtpCapabilities: rtpCapabilities});
             setStatus('Mediasoup Device 초기화됨');
 
             // Consumer Transport 생성
@@ -52,11 +54,11 @@ function App() {
             consumerTransportRef.current = consumerTransport;
 
             // Transport 이벤트 핸들러 설정
-            consumerTransport.on('connect', async ({ dtlsParameters }, callback, errback) => {
+            consumerTransport.on('connect', async ({dtlsParameters}, callback, errback) => {
                 try {
                     setStatus('Consumer Transport 연결 중...');
                     await new Promise((resolve, reject) => {
-                        socket.emit('connectConsumerTransport', { dtlsParameters }, (response) => {
+                        socket.emit('connectConsumerTransport', {dtlsParameters}, (response) => {
                             if (response && response.error) {
                                 reject(new Error(response.error));
                             } else {
@@ -74,8 +76,8 @@ function App() {
 
             // 미디어 소비 시작
             setStatus('미디어 스트림 요청 중...');
-            const { id, producerId, kind, rtpParameters } = await new Promise((resolve, reject) => {
-                socket.emit('consume', { rtpCapabilities: device.rtpCapabilities }, (response) => {
+            const {id, producerId, kind, rtpParameters} = await new Promise((resolve, reject) => {
+                socket.emit('consume', {rtpCapabilities: device.rtpCapabilities}, (response) => {
                     if (response.error) {
                         reject(new Error(response.error));
                     } else {
@@ -98,9 +100,18 @@ function App() {
 
             // 비디오 스트림 설정
             const stream = new MediaStream([consumer.track]);
+            // 🛠 만약 꺼져 있다면 켜기
+            if (!consumer.track.enabled) {
+                console.warn("track.enabled가 false 상태입니다. 활성화합니다.");
+                consumer.track.enabled = true;
+            }
             if (remoteVideo.current) {
                 remoteVideo.current.srcObject = stream;
+                remoteVideo.current.play().catch(e => {
+                    console.warn("재생 실패:", e);
+                });
             }
+
 
             setStatus('스트림 수신 중...');
             setConnected(true);
@@ -171,6 +182,9 @@ function App() {
         };
     }, []);
 
+    setTimeout(()=>{
+        console.log(typeof remoteVideo, "\nMYDEBUG\n", remoteVideo.current, remoteVideo.current.srcObject)
+    },5000);
     return (
         <div className="consumer-container">
             <h2>WebRTC 스트림 수신 (Consumer)</h2>
@@ -187,17 +201,21 @@ function App() {
                         Producer 연결 대기 중...
                     </div>
                 )}
-                <video
-                    ref={remoteVideo}
-                    autoPlay
-                    playsInline
-                    style={{ 
-                        width: '100%', 
-                        maxWidth: '640px', 
-                        border: '1px solid #ccc',
-                        display: connected ? 'block' : 'none' 
-                    }}
-                />
+                {/*<video*/}
+                {/*    ref={remoteVideo}*/}
+                {/*    autoPlay*/}
+                {/*    playsInline*/}
+                {/*    muted // 추가*/}
+                {/*    controls // 디버깅용으로 추가*/}
+                {/*    style={{*/}
+                {/*        width: '100%',*/}
+                {/*        maxWidth: '640px',*/}
+                {/*        border: '1px solid #ccc',*/}
+                {/*        display: connected ? 'block' : 'none'*/}
+                {/*    }}*/}
+                {/*/>*/}
+                <VideoStream ref={remoteVideo}/>
+
             </div>
         </div>
     );

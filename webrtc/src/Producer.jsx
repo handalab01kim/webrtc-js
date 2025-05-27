@@ -154,7 +154,9 @@ function App() {
             socket.disconnect();
         };
     }, []);
-
+    setTimeout(()=>{
+        console.log(typeof localVideo, "\nMYDEBUG\n", localVideo.current, localVideo.current.srcObject)
+    },5000);
     return (
         <div className="producer-container">
             <h2>WebRTC 스트리밍 (Producer)</h2>
