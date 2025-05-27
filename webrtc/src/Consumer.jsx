@@ -1,7 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {io} from 'socket.io-client';
-import ReactPlayer from 'react-player/lazy';
-import VideoStream from './VideoStream';
 
 const mediasoupClient = await import('mediasoup-client');
 const socket = io('http://localhost:3001');
@@ -95,23 +93,17 @@ function App() {
                 kind,
                 rtpParameters
             });
+            await consumer.resume();
 
             consumerRef.current = consumer;
 
             // 비디오 스트림 설정
             const stream = new MediaStream([consumer.track]);
-            // 🛠 만약 꺼져 있다면 켜기
-            if (!consumer.track.enabled) {
-                console.warn("track.enabled가 false 상태입니다. 활성화합니다.");
-                consumer.track.enabled = true;
-            }
             if (remoteVideo.current) {
+                console.log("MY_DEBUG1")
+                console.log(stream);
                 remoteVideo.current.srcObject = stream;
-                remoteVideo.current.play().catch(e => {
-                    console.warn("재생 실패:", e);
-                });
             }
-
 
             setStatus('스트림 수신 중...');
             setConnected(true);
@@ -123,10 +115,12 @@ function App() {
 
                 if (remoteVideo.current) {
                     remoteVideo.current.srcObject = null;
+                    console.log("MY_DEBUG2")
                 }
 
                 if (consumerRef.current) {
                     consumerRef.current.close();
+                    console.log("MY_DEBUG3")
                 }
             });
 
@@ -167,10 +161,12 @@ function App() {
         return () => {
             // 정리 작업
             if (consumerRef.current) {
+                console.log("MY_DEBUG4")
                 consumerRef.current.close();
             }
 
             if (consumerTransportRef.current) {
+                console.log("MY_DEBUG5")
                 consumerTransportRef.current.close();
             }
 
@@ -182,9 +178,29 @@ function App() {
         };
     }, []);
 
-    setTimeout(()=>{
-        console.log(typeof remoteVideo, "\nMYDEBUG\n", remoteVideo.current, remoteVideo.current.srcObject)
-    },5000);
+    setTimeout(() => {
+        const videoEl = remoteVideo.current;
+        if (!videoEl) return;
+
+        const stream = videoEl.srcObject;
+        console.log("my_debug@@@@ video element:", videoEl);
+        console.log("my_debug@@@2 srcObject:", stream);
+
+        if (stream instanceof MediaStream) {
+            const tracks = stream.getTracks();
+            const videoTracks = stream.getVideoTracks();
+            console.log("my_debug@@@3 getTracks():", tracks);
+            console.log("my_debug@@@4 getVideoTracks():", videoTracks);
+
+            if (videoTracks.length > 0) {
+                console.log("my_debug@@@5 track readyState:", videoTracks[0].readyState);
+                console.log("my_debug@@@6 track muted:", videoTracks[0].muted);
+            }
+        } else {
+            console.warn("srcObject가 MediaStream이 아님");
+        }
+    }, 2000);
+
     return (
         <div className="consumer-container">
             <h2>WebRTC 스트림 수신 (Consumer)</h2>
@@ -201,21 +217,17 @@ function App() {
                         Producer 연결 대기 중...
                     </div>
                 )}
-                {/*<video*/}
-                {/*    ref={remoteVideo}*/}
-                {/*    autoPlay*/}
-                {/*    playsInline*/}
-                {/*    muted // 추가*/}
-                {/*    controls // 디버깅용으로 추가*/}
-                {/*    style={{*/}
-                {/*        width: '100%',*/}
-                {/*        maxWidth: '640px',*/}
-                {/*        border: '1px solid #ccc',*/}
-                {/*        display: connected ? 'block' : 'none'*/}
-                {/*    }}*/}
-                {/*/>*/}
-                <VideoStream ref={remoteVideo}/>
-
+                <video
+                    ref={remoteVideo}
+                    autoPlay
+                    playsInline
+                    style={{
+                        width: '100%',
+                        maxWidth: '640px',
+                        border: '1px solid #ccc',
+                        display: connected ? 'block' : 'none'
+                    }}
+                />
             </div>
         </div>
     );
