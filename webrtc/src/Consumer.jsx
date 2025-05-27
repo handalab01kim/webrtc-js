@@ -225,6 +225,8 @@ function App() {
                     ref={remoteVideo}
                     autoPlay
                     playsInline
+                    muted
+                    controls
                     style={{
                         width: '100%',
                         maxWidth: '640px',
