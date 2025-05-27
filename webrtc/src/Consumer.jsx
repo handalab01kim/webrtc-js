@@ -73,12 +73,12 @@ function App() {
             });
 
             // 미디어 소비 시작
-// 1. producers 목록 요청
+            // 1. producers 목록 요청
             const producers = await new Promise((resolve) => {
                 socket.emit('getProducers', (list) => resolve(list)); // [{kind: "video", id: "..."}]
             });
 
-// 2. 각 producer에 대해 consume 수행
+            // 2. 각 producer에 대해 consume 수행
             for (const { kind, id: producerId } of producers) {
                 const { id, kind, rtpParameters } = await new Promise((resolve, reject) => {
                     socket.emit('consume', { producerId, rtpCapabilities: device.rtpCapabilities }, (res) => {
@@ -182,28 +182,6 @@ function App() {
         };
     }, []);
 
-    setTimeout(() => {
-        const videoEl = remoteVideo.current;
-        if (!videoEl) return;
-
-        const stream = videoEl.srcObject;
-        console.log("my_debug@@@@ video element:", videoEl);
-        console.log("my_debug@@@2 srcObject:", stream);
-
-        if (stream instanceof MediaStream) {
-            const tracks = stream.getTracks();
-            const videoTracks = stream.getVideoTracks();
-            console.log("my_debug@@@3 getTracks():", tracks);
-            console.log("my_debug@@@4 getVideoTracks():", videoTracks);
-
-            if (videoTracks.length > 0) {
-                console.log("my_debug@@@5 track readyState:", videoTracks[0].readyState);
-                console.log("my_debug@@@6 track muted:", videoTracks[0].muted);
-            }
-        } else {
-            console.warn("srcObject가 MediaStream이 아님");
-        }
-    }, 2000);
 
     return (
         <div className="consumer-container">

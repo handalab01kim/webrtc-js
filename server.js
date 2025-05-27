@@ -9,16 +9,14 @@ const io = new Server(server, {
     cors: {origin: '*'},
 });
 
-// Mediasoup objects
 let worker;
 let router;
 let producerTransport;
-let producer = null;
 
 // Store consumer transports and consumers
 const consumerTransports = new Map();
 const consumers = new Map();
-const producers = new Map(); // key: "video" | "audio"
+const producers = new Map(); // { video | audio }
 
 async function startMediasoup() {
     worker = await mediasoup.createWorker({
