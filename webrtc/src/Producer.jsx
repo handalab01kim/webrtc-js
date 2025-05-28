@@ -6,29 +6,6 @@ const socket = io('http://localhost:3001');
 
 const TEST_ROOM = 1;
 
-// Predefined quality options
-const resolutionOptions = [
-    { label: '4K (2160p)', width: 3840, height: 2160 },
-    { label: 'Full HD (1080p)', width: 1920, height: 1080 },
-    { label: 'HD (720p)', width: 1280, height: 720 },
-    { label: 'SD (480p)', width: 854, height: 480 },
-    { label: 'Low (360p)', width: 640, height: 360 },
-];
-
-const frameRateOptions = [
-    { label: '60 fps', value: 60 },
-    { label: '30 fps', value: 30 },
-    { label: '24 fps', value: 24 },
-    { label: '15 fps', value: 15 },
-];
-
-const bitrateOptions = [
-    { label: 'High (4 Mbps)', value: 4000000 },
-    { label: 'Medium (2 Mbps)', value: 2000000 },
-    { label: 'Low (1 Mbps)', value: 1000000 },
-    { label: 'Very Low (500 Kbps)', value: 500000 },
-];
-
 function waitForSocketId(socket) {
     return new Promise((resolve) => {
         if (socket.id) return resolve(socket.id);
@@ -42,40 +19,22 @@ function App() {
     const producerTransportRef = useRef(null); // 연결 종료를 위한 useRef
     const producerRef = useRef(null); // 연결 종료를 위한 useRef
 
-    // Video quality state
-    const [selectedResolution, setSelectedResolution] = useState(1); // Default: Full HD (1080p)
-    const [selectedFrameRate, setSelectedFrameRate] = useState(1); // Default: 30 fps
-    const [selectedBitrate, setSelectedBitrate] = useState(1); // Default: Medium (2 Mbps)
-    const [isStreaming, setIsStreaming] = useState(false);
-
     // 웹캠 useRef로 받아오기
     const getWebcamVideo = async () => {
         try {
-            // Get selected quality settings
-            const resolution = resolutionOptions[selectedResolution];
-            const frameRate = frameRateOptions[selectedFrameRate].value;
-
-            console.log(`Requesting camera with resolution: ${resolution.width}x${resolution.height}, frameRate: ${frameRate}`);
-
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: {
-                    width: { ideal: resolution.width },
-                    height: { ideal: resolution.height },
-                    frameRate: { ideal: frameRate }
+                    width: { ideal: 1920  },
+                    height: { ideal: 1080 },
+                    frameRate: { ideal: 30 }
                 },
+                // video: true,
                 audio: true,
             });
-
             webcamStream.current = stream;
             if (localVideo.current) {
                 localVideo.current.srcObject = stream;
             }
-
-            // Log actual settings
-            const videoTrack = stream.getVideoTracks()[0];
-            const settings = videoTrack.getSettings();
-            console.log(`Actual camera settings - resolution: ${settings.width}x${settings.height}, frameRate: ${settings.frameRate}`);
-
             return stream;
         } catch (error) {
             console.error('웹캠 접근 실패:', error.message);
@@ -152,27 +111,19 @@ function App() {
         console.log(`my_debug; 해상도: ${settings.width}x${settings.height}`);
 
 
-        // Get selected bitrate
-        const maxBitrate = bitrateOptions[selectedBitrate].value;
-        console.log(`Using max bitrate: ${maxBitrate} bps`);
-
-        // Calculate scaled bitrates for different quality levels
-        const lowBitrate = Math.max(100000, Math.floor(maxBitrate * 0.1));
-        const mediumBitrate = Math.max(300000, Math.floor(maxBitrate * 0.5));
-
         // await producerTransport.produce({ track: videoTrack });
         producerRef.current = await producerTransport.produce({
             track: videoTrack,
             encodings: [
-                { maxBitrate: lowBitrate, scaleResolutionDownBy: 4 }, // 저화질 1/4
-                { maxBitrate: mediumBitrate, scaleResolutionDownBy: 2 }, // 중화질 1/2
-                { maxBitrate: maxBitrate, scaleResolutionDownBy: 1 } // 원본 해상도
+                { maxBitrate: 100_000, scaleResolutionDownBy: 4 }, // 저화질 1/4
+                { maxBitrate: 300_000, scaleResolutionDownBy: 2 }, // 중화질 1/2
+                { maxBitrate: 1_000_000, scaleResolutionDownBy: 1 } // 원본 해상도
             ],
-            codecOptions: {
-                videoGoogleStartBitrate: Math.floor(maxBitrate / 1000)
-            }
+            // codecOptions: {
+            //     videoGoogleStartBitrate: 1000
+            // }
         });
-        // console.log("MY_DEBUG!!!!!!!!", producerRef.current.rtpParameters.encodings.length);
+        console.log("MY_DEBUGGGGGGGGGGGGGG", producerRef.current.rtpParameters.encodings.length);
     }
 
     // 오디오 스트림 전송
@@ -190,8 +141,6 @@ function App() {
 
     const start = async () => {
         try {
-            setIsStreaming(true);
-
             // 웹캠 useRef로 받아오기
             const stream = await getWebcamVideo();
             console.log("getWebcamVideo");
@@ -216,27 +165,22 @@ function App() {
 
         } catch (error) {
             console.error('Producer 초기화 실패:', error);
-            setIsStreaming(false);
         }
-    }
-
-    const stopStreaming = () => {
-        if (webcamStream.current) {
-            webcamStream.current.getTracks().forEach(track => track.stop());
-        }
-        if (producerRef.current) {
-            producerRef.current.close();
-        }
-        if (producerTransportRef.current) {
-            producerTransportRef.current.close();
-        }
-        setIsStreaming(false);
     }
 
     useEffect(() => {
-        // Component cleanup
+        start();
+
         return () => {
-            stopStreaming();
+            if (webcamStream.current) {
+                webcamStream.current.getTracks().forEach(track => track.stop());
+            }
+            if (producerRef.current) {
+                producerRef.current.close();
+            }
+            if (producerTransportRef.current) {
+                producerTransportRef.current.close();
+            }
             socket.disconnect();
         };
     }, []);
@@ -244,91 +188,6 @@ function App() {
     return (
         <>
             <h2>WebRTC Producer</h2>
-
-            {!isStreaming ? (
-                <div style={{ marginBottom: '20px' }}>
-                    <h3>Video Quality Settings</h3>
-
-                    <div style={{ marginBottom: '10px' }}>
-                        <label style={{ display: 'block', marginBottom: '5px' }}>Resolution:</label>
-                        <select 
-                            value={selectedResolution}
-                            onChange={(e) => setSelectedResolution(Number(e.target.value))}
-                            style={{ padding: '5px', width: '200px' }}
-                        >
-                            {resolutionOptions.map((option, index) => (
-                                <option key={index} value={index}>
-                                    {option.label} ({option.width}x{option.height})
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div style={{ marginBottom: '10px' }}>
-                        <label style={{ display: 'block', marginBottom: '5px' }}>Frame Rate:</label>
-                        <select 
-                            value={selectedFrameRate}
-                            onChange={(e) => setSelectedFrameRate(Number(e.target.value))}
-                            style={{ padding: '5px', width: '200px' }}
-                        >
-                            {frameRateOptions.map((option, index) => (
-                                <option key={index} value={index}>
-                                    {option.label}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div style={{ marginBottom: '10px' }}>
-                        <label style={{ display: 'block', marginBottom: '5px' }}>Bitrate:</label>
-                        <select 
-                            value={selectedBitrate}
-                            onChange={(e) => setSelectedBitrate(Number(e.target.value))}
-                            style={{ padding: '5px', width: '200px' }}
-                        >
-                            {bitrateOptions.map((option, index) => (
-                                <option key={index} value={index}>
-                                    {option.label}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <button 
-                        onClick={start}
-                        style={{ 
-                            padding: '8px 16px', 
-                            backgroundColor: '#4CAF50', 
-                            color: 'white', 
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontSize: '16px'
-                        }}
-                    >
-                        Start Streaming
-                    </button>
-                </div>
-            ) : (
-                <div style={{ marginBottom: '10px' }}>
-                    <button 
-                        onClick={stopStreaming}
-                        style={{ 
-                            padding: '8px 16px', 
-                            backgroundColor: '#f44336', 
-                            color: 'white', 
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontSize: '16px',
-                            marginBottom: '10px'
-                        }}
-                    >
-                        Stop Streaming
-                    </button>
-                </div>
-            )}
-
             <div>
                 <video
                     ref={localVideo}
@@ -336,12 +195,7 @@ function App() {
                     playsInline
                     controls
                     muted
-                    style={{ 
-                        width: '100%', 
-                        maxWidth: '640px', 
-                        border: '1px solid #ccc',
-                        display: isStreaming ? 'block' : 'none'
-                    }}
+                    style={{ width: '100%', maxWidth: '640px', border: '1px solid #ccc' }}
                 />
             </div>
         </>

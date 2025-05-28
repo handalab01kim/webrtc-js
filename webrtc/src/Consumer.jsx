@@ -4,20 +4,12 @@ import {io} from 'socket.io-client';
 const mediasoupClient = await import('mediasoup-client');
 const socket = io('http://localhost:3001');
 
-// Quality options for consumer
-const qualityOptions = [
-    { label: 'High Quality', value: 2 },
-    { label: 'Medium Quality', value: 1 },
-    { label: 'Low Quality', value: 0 }
-];
-
 function App() {
     const remoteVideo = useRef(null);
     const consumerTransportRef = useRef(null);
     const consumerRef = useRef(null);
     const [connected, setConnected] = useState(false);
     const [ready, setReady] = useState(false);
-    const [selectedQuality, setSelectedQuality] = useState(2); // Default: High Quality
 
     // device 생성
     const createDevice = async () => {
