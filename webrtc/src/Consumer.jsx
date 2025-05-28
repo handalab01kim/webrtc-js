@@ -4,166 +4,146 @@ import {io} from 'socket.io-client';
 const mediasoupClient = await import('mediasoup-client');
 const socket = io('http://localhost:3001');
 
+// Quality options for consumer
+const qualityOptions = [
+    { label: 'High Quality', value: 2 },
+    { label: 'Medium Quality', value: 1 },
+    { label: 'Low Quality', value: 0 }
+];
+
 function App() {
     const remoteVideo = useRef(null);
-    const deviceRef = useRef(null);
     const consumerTransportRef = useRef(null);
     const consumerRef = useRef(null);
-    const [status, setStatus] = useState('초기화 중...');
-    const [error, setError] = useState(null);
     const [connected, setConnected] = useState(false);
+    const [ready, setReady] = useState(false);
+    const [selectedQuality, setSelectedQuality] = useState(2); // Default: High Quality
+
+    // device 생성
+    const createDevice = async () => {
+        const device = new mediasoupClient.Device();
+
+        const rtpCapabilities = await new Promise((resolve, reject) => {
+            socket.emit('getRtpCapabilities', resolve);
+        });
+
+        await device.load({routerRtpCapabilities: rtpCapabilities});
+        return device;
+    }
+
+    // recvTransport 생성
+    const setConsumer = async (device) => {
+        const transportInfo = await new Promise((resolve, reject) => {
+            socket.emit('createConsumerTransport', resolve);
+        });
+
+        console.log('Consumer Transport 정보 받음');
+
+        const consumerTransport = device.createRecvTransport(transportInfo);
+        consumerTransportRef.current = consumerTransport;
+
+        consumerTransport.on('connect', async ({dtlsParameters}, callback, errback) => {
+            try {
+                console.log('Consumer Transport 연결 중...');
+                await new Promise((resolve, reject) => {
+                    socket.emit('connectConsumerTransport', {dtlsParameters}, resolve);
+                });
+                console.log('Consumer Transport 연결됨');
+                callback();
+            } catch (error) {
+                errback(error);
+                console.log('Transport 연결 실패: ' + error.message);
+            }
+        });
+
+        return consumerTransport;
+    }
+
+    const startConsuming = async (device, consumerTransport) => {
+        // - producers 목록 받아오기
+        const producers = await new Promise((resolve) => {
+            socket.emit('getProducers', resolve); // [{kind: "video", id: "..."}]
+        });
+
+        // - 각 producer(video, audio)에 대해 consume
+        for (const { kind, id: producerId } of producers) {
+            const { id, kind, rtpParameters } = await new Promise((resolve, reject) => {
+                socket.emit('consume', { producerId, rtpCapabilities: device.rtpCapabilities }, (res) => {
+                    if (res.error) reject(res.error);
+                    else resolve(res);
+                });
+            });
+
+            const consumer = await consumerTransport.consume({ id, producerId, kind, rtpParameters });
+            await consumer.resume();
+
+            // console.log('consumer.rtpParameters.encodings:', consumer.rtpParameters.encodings);
+            // console.log('setPreferredLayers:', typeof consumer.setPreferredLayers);
+
+            // if (kind === 'video') {
+            //     console.log(consumer);
+            //     await consumer.setPreferredLayers({
+            //         spatialLayer: 2,  // 해상도 선택 (고해상도 원본 / Producer.jsx encodings-scaleResolutionDownBy 커스텀 설정 값(idx)
+            //         temporalLayer: 2  // 프레임레이트 선택 (0: 7.5fps, 1: 15fps, 2: 30fps), 기본값 자동 산정?
+            //     });
+            // }
+
+
+            consumerRef.current = consumer;
+
+            const stream = new MediaStream([consumer.track]);
+
+            if (kind === 'video') {
+                if (remoteVideo.current) {
+                    remoteVideo.current.srcObject = stream;
+                }
+                setConnected(true);
+            } else if (kind === 'audio') {
+                const audio = new Audio();
+                audio.srcObject = stream;
+                audio.play().catch((e) => console.warn('오디오 재생 실패:', e));
+            }
+        }
+        socket.on('producerClosed', () => {
+            console.log('Producer 연결 종료');
+            setConnected(false);
+
+            if (remoteVideo.current) {
+                remoteVideo.current.srcObject = null;
+                console.log("MY_DEBUG2")
+            }
+
+            if (consumerRef.current) {
+                consumerRef.current.close();
+                console.log("MY_DEBUG3")
+            }
+        });
+    }
 
     const start = async () => {
         try {
-            // Mediasoup Device 초기화
-            setStatus('Mediasoup Device 초기화 중...');
-            const device = new mediasoupClient.Device();
-            deviceRef.current = device;
+            // device 생성
+            const device = await createDevice();
+            console.log("createDevice");
 
-            const rtpCapabilities = await new Promise((resolve, reject) => {
-                socket.emit('getRtpCapabilities', (data) => {
-                    if (data.error) {
-                        reject(new Error(data.error));
-                    } else {
-                        resolve(data);
-                    }
-                });
-            });
+            // recvTransport 생성
+            const consumerTransport = await setConsumer(device);
+            console.log("setConsumer");
 
-            await device.load({routerRtpCapabilities: rtpCapabilities});
-            setStatus('Mediasoup Device 초기화됨');
-
-            // Consumer Transport 생성
-            setStatus('Consumer Transport 생성 중...');
-            const transportInfo = await new Promise((resolve, reject) => {
-                socket.emit('createConsumerTransport', (response) => {
-                    if (response.error) {
-                        reject(new Error(response.error));
-                    } else {
-                        resolve(response);
-                    }
-                });
-            });
-
-            setStatus('Consumer Transport 정보 받음');
-
-            // Consumer Transport 설정
-            const consumerTransport = device.createRecvTransport(transportInfo);
-            consumerTransportRef.current = consumerTransport;
-
-            // Transport 이벤트 핸들러 설정
-            consumerTransport.on('connect', async ({dtlsParameters}, callback, errback) => {
-                try {
-                    setStatus('Consumer Transport 연결 중...');
-                    await new Promise((resolve, reject) => {
-                        socket.emit('connectConsumerTransport', {dtlsParameters}, (response) => {
-                            if (response && response.error) {
-                                reject(new Error(response.error));
-                            } else {
-                                resolve();
-                            }
-                        });
-                    });
-                    setStatus('Consumer Transport 연결됨');
-                    callback();
-                } catch (error) {
-                    errback(error);
-                    setError('Transport 연결 실패: ' + error.message);
-                }
-            });
-
-            // 미디어 소비 시작
-            // 1. producers 목록 요청
-            const producers = await new Promise((resolve) => {
-                socket.emit('getProducers', (list) => resolve(list)); // [{kind: "video", id: "..."}]
-            });
-
-            // 2. 각 producer에 대해 consume 수행
-            for (const { kind, id: producerId } of producers) {
-                const { id, kind, rtpParameters } = await new Promise((resolve, reject) => {
-                    socket.emit('consume', { producerId, rtpCapabilities: device.rtpCapabilities }, (res) => {
-                        if (res.error) reject(res.error);
-                        else resolve(res);
-                    });
-                });
-
-                const consumer = await consumerTransport.consume({ id, producerId, kind, rtpParameters });
-                await consumer.resume();
-
-                consumerRef.current = consumer; // 원하면 따로 리스트에 저장해도 됨
-
-                const stream = new MediaStream([consumer.track]);
-
-                if (kind === 'video') {
-                    if (remoteVideo.current) {
-                        remoteVideo.current.srcObject = stream;
-                    }
-                    setConnected(true);
-                    setStatus('비디오 스트림 수신 중...');
-                } else if (kind === 'audio') {
-                    const audio = new Audio();
-                    audio.srcObject = stream;
-                    audio.play().catch((e) => console.warn('오디오 재생 실패:', e));
-                }
-            }
+            // consume 시작
+            await startConsuming(device, consumerTransport);
+            console.log("startConsuming");
 
 
-            setStatus('미디어 스트림 정보 받음');
-
-
-
-            // Producer가 닫힐 때 이벤트 처리
-            socket.on('producerClosed', () => {
-                setStatus('Producer가 연결을 종료했습니다');
-                setConnected(false);
-
-                if (remoteVideo.current) {
-                    remoteVideo.current.srcObject = null;
-                    console.log("MY_DEBUG2")
-                }
-
-                if (consumerRef.current) {
-                    consumerRef.current.close();
-                    console.log("MY_DEBUG3")
-                }
-            });
-
-        } catch (error) {
-            console.error('Consumer 초기화 실패:', error);
-            setError('초기화 실패: ' + error.message);
-            setStatus('오류 발생');
+        } catch (e) {
+            console.log(e);
         }
-    };
-
-    // 재연결 시도 함수
-    const reconnect = () => {
-        setError(null);
-        setStatus('재연결 시도 중...');
-
-        // 기존 리소스 정리
-        if (consumerRef.current) {
-            consumerRef.current.close();
-            consumerRef.current = null;
-        }
-
-        if (consumerTransportRef.current) {
-            consumerTransportRef.current.close();
-            consumerTransportRef.current = null;
-        }
-
-        if (remoteVideo.current) {
-            remoteVideo.current.srcObject = null;
-        }
-
-        // 재연결 시작
-        start();
     };
 
     useEffect(() => {
-        start();
+        // start();
 
         return () => {
-            // 정리 작업
             if (consumerRef.current) {
                 console.log("MY_DEBUG4")
                 consumerRef.current.close();
@@ -174,46 +154,37 @@ function App() {
                 consumerTransportRef.current.close();
             }
 
-            // 소켓 이벤트 리스너 제거
             socket.off('producerClosed');
 
-            // 소켓 연결 해제
             socket.disconnect();
         };
     }, []);
 
 
     return (
-        <div className="consumer-container">
-            <h2>WebRTC 스트림 수신 (Consumer)</h2>
-            <div className="status">상태: {status}</div>
-            {error && (
-                <div className="error-container">
-                    <div className="error">에러: {error}</div>
-                    <button onClick={reconnect} className="reconnect-button">재연결 시도</button>
-                </div>
-            )}
-            <div className="video-container">
-                {!connected && !error && (
-                    <div className="waiting-message">
-                        Producer 연결 대기 중...
-                    </div>
+        <>
+            <h2>WebRTC Consumer</h2>
+            <div>
+                {!ready && (
+                    <button onClick ={()=>{setReady(true);start();}}>start consume</button>
                 )}
-                <video
-                    ref={remoteVideo}
-                    autoPlay
-                    playsInline
-                    muted
-                    controls
-                    style={{
-                        width: '100%',
-                        maxWidth: '640px',
-                        border: '1px solid #ccc',
-                        display: connected ? 'block' : 'none'
-                    }}
-                />
+                {ready &&(
+                    <video
+                        ref={remoteVideo}
+                        autoPlay
+                        playsInline
+                        muted
+                        controls
+                        style={{
+                            width: '100%',
+                            maxWidth: '640px',
+                            border: '1px solid #ccc',
+                            display: connected ? 'block' : 'none'
+                        }}
+                    />
+                )}
             </div>
-        </div>
+        </>
     );
 }
 

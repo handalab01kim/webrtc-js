@@ -13,54 +13,22 @@ let worker;
 let router;
 let producerTransport;
 
-// Store consumer transports and consumers
 const consumerTransports = new Map();
 const consumers = new Map();
 const producers = new Map(); // { video | audio }
 
-async function startMediasoup() {
-    worker = await mediasoup.createWorker({
-        logLevel: 'warn',
-        rtcMinPort: 10000,
-        rtcMaxPort: 10100,
-    });
-
-    router = await worker.createRouter({
-        mediaCodecs: [
-            {
-                kind: 'video',
-                mimeType: 'video/VP8',
-                clockRate: 90000,
-                parameters: {},
-            },
-            {
-                kind: 'audio',
-                mimeType: 'audio/opus',
-                clockRate: 48000,
-                channels: 2,
-                parameters: {},
-            },
-        ],
-    });
-
-    console.log('Mediasoup worker and router created');
-}
-
 io.on('connection', async (socket) => {
     console.log('Client connected:', socket.id);
 
-    // Clean up on disconnect
     socket.on('disconnect', () => {
         console.log('Client disconnected:', socket.id);
 
-        // Close and remove consumer transport
         const transport = consumerTransports.get(socket.id);
         if (transport) {
             transport.close();
             consumerTransports.delete(socket.id);
         }
 
-        // Close and remove consumer
         const consumer = consumers.get(socket.id);
         if (consumer) {
             consumer.close();
@@ -68,16 +36,15 @@ io.on('connection', async (socket) => {
         }
     });
 
-    // Return router RTP capabilities
+    // RTP capabilities 반환
     socket.on('getRtpCapabilities', (callback) => {
         console.log('Get RTP Capabilities');
         callback(router.rtpCapabilities);
     });
 
-    // Create producer transport
+    // sendTransport 생성
     socket.on('createProducerTransport', async (callback) => {
         try {
-            // Create a new WebRTC transport
             const transport = await router.createWebRtcTransport({
                 listenIps: [{ ip: '127.0.0.1', announcedIp: null }],
                 enableUdp: true,
@@ -87,18 +54,16 @@ io.on('connection', async (socket) => {
 
             console.log('Producer transport created:', transport.id);
 
-            // Store the transport
             producerTransport = transport;
 
-            // Monitor transport state
             transport.on('dtlsstatechange', (dtlsState) => {
                 console.log('Producer transport DTLS state changed to', dtlsState);
                 if (dtlsState === 'closed') {
                     transport.close();
                 }
+                console.log("MY_DEBUG##########");
             });
 
-            // Return transport parameters to client
             callback({
                 id: transport.id,
                 iceParameters: transport.iceParameters,
@@ -111,7 +76,7 @@ io.on('connection', async (socket) => {
         }
     });
 
-    // Connect producer transport
+    // producerTransport 연결
     socket.on('connectProducerTransport', async ({ dtlsParameters }, callback) => {
         try {
             await producerTransport.connect({ dtlsParameters });
@@ -123,12 +88,12 @@ io.on('connection', async (socket) => {
         }
     });
 
-    // Start producing (sending media)
+    // 미디어 전송 시작
     socket.on('produce', async ({ kind, rtpParameters }, callback) => {
         try {
             const newProducer = await producerTransport.produce({ kind, rtpParameters });
 
-            producers.set(kind, newProducer); // kind 기준으로 저장
+            producers.set(kind, newProducer); // kind 기준 저장
             console.log('Producer created:', newProducer.id, 'kind:', kind);
 
             newProducer.on('transportclose', () => {
@@ -145,10 +110,9 @@ io.on('connection', async (socket) => {
 
 
 
-    // Create consumer transport
+    // consumerTransport 생성
     socket.on('createConsumerTransport', async (callback) => {
         try {
-            // Create a new WebRTC transport for this consumer
             const transport = await router.createWebRtcTransport({
                 listenIps: [{ ip: '127.0.0.1', announcedIp: null }],
                 enableUdp: true,
@@ -158,10 +122,8 @@ io.on('connection', async (socket) => {
 
             console.log('Consumer transport created:', transport.id, 'for client:', socket.id);
 
-            // Store the transport with the socket ID
             consumerTransports.set(socket.id, transport);
 
-            // Monitor transport state
             transport.on('dtlsstatechange', (dtlsState) => {
                 console.log('Consumer transport DTLS state changed to', dtlsState);
                 if (dtlsState === 'closed') {
@@ -169,7 +131,6 @@ io.on('connection', async (socket) => {
                 }
             });
 
-            // Return transport parameters to client
             callback({
                 id: transport.id,
                 iceParameters: transport.iceParameters,
@@ -182,7 +143,6 @@ io.on('connection', async (socket) => {
         }
     });
 
-    // Connect consumer transport
     socket.on('connectConsumerTransport', async ({ dtlsParameters }, callback) => {
         try {
             const transport = consumerTransports.get(socket.id);
@@ -209,7 +169,7 @@ io.on('connection', async (socket) => {
     });
 
 
-    // Start consuming (receiving media)
+    // 미디어 consume 시작
     socket.on('consume', async ({ producerId, rtpCapabilities }, callback) => {
         try {
             const selectedProducer = [...producers.values()].find(p => p.id === producerId);
@@ -251,11 +211,36 @@ io.on('connection', async (socket) => {
     });
 
 
-    // ... 나머지 코드 유지 ...
 });
 
+async function startMediasoup() {
+    worker = await mediasoup.createWorker({});
+
+    router = await worker.createRouter({
+        mediaCodecs: [
+            {
+                kind: 'video',
+                mimeType: 'video/VP8',
+                clockRate: 90000,
+                parameters: {},
+            },
+            {
+                kind: 'audio',
+                mimeType: 'audio/opus',
+                clockRate: 48000,
+                channels: 2,
+                parameters: {},
+            },
+        ],
+    });
+
+    // console.log("worker":worker);
+    // console.log("router":router);
+
+}
+
 startMediasoup().then(() => {
-    server.listen(3001, () => {
+    server.listen(3001, '0.0.0.0', () => {
         console.log('Server running on http://localhost:3001');
     });
 });
