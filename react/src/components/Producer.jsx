@@ -1,8 +1,9 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {io} from 'socket.io-client';
+import {serverUrl} from "../config/config.js";
 
 const mediasoupClient = await import('mediasoup-client');
-const socket = io('http://localhost:3001');
+const socket = io(serverUrl);
 
 const TEST_ROOM = 1;
 
@@ -114,16 +115,16 @@ function App() {
         // await producerTransport.produce({ track: videoTrack });
         producerRef.current = await producerTransport.produce({
             track: videoTrack,
-            encodings: [
-                { maxBitrate: 100_000, scaleResolutionDownBy: 4 }, // 저화질 1/4
-                { maxBitrate: 300_000, scaleResolutionDownBy: 2 }, // 중화질 1/2
-                { maxBitrate: 1_000_000, scaleResolutionDownBy: 1 } // 원본 해상도
-            ],
-            // codecOptions: {
-            //     videoGoogleStartBitrate: 1000
-            // }
+            // encodings: [
+            //     { maxBitrate: 100_000, scaleResolutionDownBy: 4 }, // 저화질 1/4
+            //     { maxBitrate: 300_000, scaleResolutionDownBy: 2 }, // 중화질 1/2
+            //     { maxBitrate: 1_000_000, scaleResolutionDownBy: 1 } // 원본 해상도
+            // ],
+            // // codecOptions: {
+            // //     videoGoogleStartBitrate: 1000
+            // // }
         });
-        console.log("MY_DEBUGGGGGGGGGGGGGG", producerRef.current.rtpParameters.encodings.length);
+        // console.log("MY_DEBUGGGGGGGGGGGGGG", producerRef.current.rtpParameters.encodings.length);
     }
 
     // 오디오 스트림 전송

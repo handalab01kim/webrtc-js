@@ -1,8 +1,10 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {io} from 'socket.io-client';
+import {serverUrl} from "../config/config.js";
+
 
 const mediasoupClient = await import('mediasoup-client');
-const socket = io('http://localhost:3001');
+const socket = io(serverUrl);
 
 function App() {
     const remoteVideo = useRef(null);
@@ -69,14 +71,11 @@ function App() {
             const consumer = await consumerTransport.consume({ id, producerId, kind, rtpParameters });
             await consumer.resume();
 
-            // console.log('consumer.rtpParameters.encodings:', consumer.rtpParameters.encodings);
-            // console.log('setPreferredLayers:', typeof consumer.setPreferredLayers);
-
             // if (kind === 'video') {
-            //     console.log(consumer);
-            //     await consumer.setPreferredLayers({
-            //         spatialLayer: 2,  // 해상도 선택 (고해상도 원본 / Producer.jsx encodings-scaleResolutionDownBy 커스텀 설정 값(idx)
-            //         temporalLayer: 2  // 프레임레이트 선택 (0: 7.5fps, 1: 15fps, 2: 30fps), 기본값 자동 산정?
+            //     socket.emit('setConsumerPreferredLayers', {
+            //         consumerId: id,
+            //         spatialLayer: 2,
+            //         temporalLayer: 2
             //     });
             // }
 
@@ -158,7 +157,12 @@ function App() {
             <h2>WebRTC Consumer</h2>
             <div>
                 {!ready && (
-                    <button onClick ={()=>{setReady(true);start();}}>start consume</button>
+                    <button onClick ={()=>{
+                        setReady(true);
+                        start();
+                    }}>
+                        start consume
+                    </button>
                 )}
                 {ready &&(
                     <video

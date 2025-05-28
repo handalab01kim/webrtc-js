@@ -1,6 +1,6 @@
 import React from 'react';
-import Producer from './Producer';
-import Consumer from './Consumer';
+import Producer from './components/Producer.jsx';
+import Consumer from './components/Consumer.jsx';
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import './styles.css';
 
