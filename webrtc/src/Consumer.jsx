@@ -4,117 +4,108 @@ import {io} from 'socket.io-client';
 const mediasoupClient = await import('mediasoup-client');
 const socket = io('http://localhost:3001');
 
+const TEST_ROOM = 1;
+
+const createDevice = async () => {
+    const device = new mediasoupClient.Device();
+
+    const rtpCapabilities = await new Promise((resolve, reject) => {
+        socket.emit('getRtpCapabilities', resolve);
+    });
+
+    await device.load({routerRtpCapabilities: rtpCapabilities});
+    return device;
+};
+
 function App() {
     const remoteVideo = useRef(null);
-    const deviceRef = useRef(null);
     const consumerTransportRef = useRef(null);
     const consumerRef = useRef(null);
-    const [status, setStatus] = useState('초기화 중...');
-    const [error, setError] = useState(null);
     const [connected, setConnected] = useState(false);
 
     const start = async () => {
         try {
-            // Mediasoup Device 초기화
-            setStatus('Mediasoup Device 초기화 중...');
-            const device = new mediasoupClient.Device();
-            deviceRef.current = device;
+            const device = await createDevice();
+            console.log("createDevice");
 
-            const rtpCapabilities = await new Promise((resolve, reject) => {
-                socket.emit('getRtpCapabilities', (data) => {
-                    if (data.error) {
-                        reject(new Error(data.error));
-                    } else {
-                        resolve(data);
-                    }
-                });
-            });
 
-            await device.load({routerRtpCapabilities: rtpCapabilities});
-            setStatus('Mediasoup Device 초기화됨');
 
-            // Consumer Transport 생성
-            setStatus('Consumer Transport 생성 중...');
             const transportInfo = await new Promise((resolve, reject) => {
-                socket.emit('createConsumerTransport', (response) => {
-                    if (response.error) {
-                        reject(new Error(response.error));
-                    } else {
-                        resolve(response);
-                    }
-                });
+                socket.emit('createConsumerTransport', resolve);
             });
 
-            setStatus('Consumer Transport 정보 받음');
-
-            // Consumer Transport 설정
             const consumerTransport = device.createRecvTransport(transportInfo);
             consumerTransportRef.current = consumerTransport;
 
             // Transport 이벤트 핸들러 설정
             consumerTransport.on('connect', async ({dtlsParameters}, callback, errback) => {
                 try {
-                    setStatus('Consumer Transport 연결 중...');
+                    console.log('Consumer Transport 연결 중...');
                     await new Promise((resolve, reject) => {
-                        socket.emit('connectConsumerTransport', {dtlsParameters}, (response) => {
-                            if (response && response.error) {
-                                reject(new Error(response.error));
-                            } else {
-                                resolve();
-                            }
-                        });
+                        socket.emit('connectConsumerTransport', {dtlsParameters}, resolve);
                     });
-                    setStatus('Consumer Transport 연결됨');
                     callback();
                 } catch (error) {
                     errback(error);
-                    setError('Transport 연결 실패: ' + error.message);
+                    console.log('Transport 연결 실패: ' + error.message);
                 }
             });
 
             // 미디어 소비 시작
             // 1. producers 목록 요청
-            const producers = await new Promise((resolve) => {
-                socket.emit('getProducers', (list) => resolve(list)); // [{kind: "video", id: "..."}]
-            });
-
-            // 2. 각 producer에 대해 consume 수행
-            for (const { kind, id: producerId } of producers) {
-                const { id, kind, rtpParameters } = await new Promise((resolve, reject) => {
-                    socket.emit('consume', { producerId, rtpCapabilities: device.rtpCapabilities }, (res) => {
-                        if (res.error) reject(res.error);
-                        else resolve(res);
-                    });
+            let producers;
+            try{
+                producers = await new Promise((resolve, reject) => {
+                    socket.emit('getProducers', {roomIds:[TEST_ROOM]}, (list)=>{
+                        if(list.error || list.length === 0){
+                            reject(new Error("producer가 없습니다"));
+                            return;
+                        }
+                        resolve(list);
+                    }); // [{kind: "video", id: "..."}]
                 });
-
-                const consumer = await consumerTransport.consume({ id, producerId, kind, rtpParameters });
-                await consumer.resume();
-
-                consumerRef.current = consumer; // 원하면 따로 리스트에 저장해도 됨
-
-                const stream = new MediaStream([consumer.track]);
-
-                if (kind === 'video') {
-                    if (remoteVideo.current) {
-                        remoteVideo.current.srcObject = stream;
-                    }
-                    setConnected(true);
-                    setStatus('비디오 스트림 수신 중...');
-                } else if (kind === 'audio') {
-                    const audio = new Audio();
-                    audio.srcObject = stream;
-                    audio.play().catch((e) => console.warn('오디오 재생 실패:', e));
-                }
+            } catch (e){
+                console.log(e);
+                return;
             }
+            console.log("MY_DEBUG11111", producers);
+            // 2. 각 producer에 대해 consume 수행
+            for(const p of producers){
+                console.log(p);
+                for (const { kind, id: producerId } of p) {
+                    const { id, kind, rtpParameters } = await new Promise((resolve, reject) => {
+                        socket.emit('consume', { producerId, rtpCapabilities: device.rtpCapabilities }, (res) => {
+                            if (res.error) reject(res.error);
+                            else resolve(res);
+                        });
+                    });
 
+                    const consumer = await consumerTransport.consume({ id, producerId, kind, rtpParameters });
+                    await consumer.resume();
 
-            setStatus('미디어 스트림 정보 받음');
+                    consumerRef.current = consumer;
 
+                    const stream = new MediaStream([consumer.track]);
+
+                    if (kind === 'video') {
+                        if (remoteVideo.current) {
+                            remoteVideo.current.srcObject = stream;
+                        }
+                        setConnected(true);
+                        console.log('비디오 스트림 수신 중...');
+                    } else if (kind === 'audio') {
+                        const audio = new Audio();
+                        audio.srcObject = stream;
+                        audio.play().catch((e) => console.warn('오디오 재생 실패:', e));
+                    }
+                }
+
+            }
 
 
             // Producer가 닫힐 때 이벤트 처리
             socket.on('producerClosed', () => {
-                setStatus('Producer가 연결을 종료했습니다');
+                console.log('Producer가 연결을 종료했습니다');
                 setConnected(false);
 
                 if (remoteVideo.current) {
@@ -129,16 +120,13 @@ function App() {
             });
 
         } catch (error) {
-            console.error('Consumer 초기화 실패:', error);
-            setError('초기화 실패: ' + error.message);
-            setStatus('오류 발생');
+            console.log('consumer 초기화 실패: ' + error.message);
         }
     };
 
     // 재연결 시도 함수
     const reconnect = () => {
-        setError(null);
-        setStatus('재연결 시도 중...');
+        console.log('재연결 시도 중...');
 
         // 기존 리소스 정리
         if (consumerRef.current) {
@@ -184,17 +172,10 @@ function App() {
 
 
     return (
-        <div className="consumer-container">
-            <h2>WebRTC 스트림 수신 (Consumer)</h2>
-            <div className="status">상태: {status}</div>
-            {error && (
-                <div className="error-container">
-                    <div className="error">에러: {error}</div>
-                    <button onClick={reconnect} className="reconnect-button">재연결 시도</button>
-                </div>
-            )}
-            <div className="video-container">
-                {!connected && !error && (
+        <div>
+            <h2>WebRTC Consumer</h2>
+            <div>
+                {!connected && (
                     <div className="waiting-message">
                         Producer 연결 대기 중...
                     </div>

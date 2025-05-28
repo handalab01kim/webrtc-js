@@ -124,16 +124,21 @@ io.on('connection', async (socket) => {
     });
 
     // Start producing (sending media)
-    socket.on('produce', async ({ kind, rtpParameters }, callback) => {
+    // roomId == socket.id(클라 측에서 socket.id로 보냄 -> 향후 socket.id를 다른 고유한 값으로 변경 가능)
+    socket.on('produce', async ({ kind, roomId, rtpParameters }, callback) => {
         try {
             const newProducer = await producerTransport.produce({ kind, rtpParameters });
 
-            producers.set(kind, newProducer); // kind 기준으로 저장
-            console.log('Producer created:', newProducer.id, 'kind:', kind);
+            if(!producers.has(roomId)){
+                producers.set(roomId, new Map());
+            }
+            const roomProducers = producers.get(roomId);
+            roomProducers.set(kind, newProducer); // roomId + kind 기준 저장
+            console.log('Producer created:', roomId, newProducer.id, 'kind:', kind);
 
             newProducer.on('transportclose', () => {
-                console.log('Producer transport closed for kind:', kind);
-                producers.delete(kind);
+                console.log('Producer transport closed for kind:', kind, roomId);
+                producers.delete(roomId);
             });
 
             callback({ id: newProducer.id });
@@ -200,12 +205,40 @@ io.on('connection', async (socket) => {
         }
     });
 
-    socket.on('getProducers', (callback) => {
-        const list = [...producers.entries()].map(([kind, prod]) => ({
-            kind,
-            id: prod.id
-        }));
-        callback(list);
+    socket.on('getProducers', (data, callback) => {
+        const {roomIds} = data;
+        console.log("my_debug!!!!!!!!!!", roomIds);
+        try{
+            const resultList = [];
+            for(const roomId of roomIds){
+                const roomProducers = producers.get(roomId); // audio + video
+                // if (!roomProducers) {
+                //     return callback([]); // 해당 roomId에 대한 producer 없음
+                // }
+                if(roomProducers) {
+                    for(const roomProducer of roomProducers){
+                    // console.log("new_debug@@@@@@@@@@@@@@\n",roomProducer)
+                        resultList.push(
+                            {
+                                kind: roomProducer[0].kind,
+                                id: roomProducer[0].id
+                            }
+                        );
+                        console.log("new_debug@@@@@@@@@@@@@@\n",roomProducer[0]);
+                    } // my_debug_here@@@@@@@@@@
+                }
+                // const list = [...producers.entries()].map(([kind, prod]) => ({
+                //     kind,
+                //     id: prod.id
+                // }));
+
+            }
+            console.log("my_debug", producers);
+            callback(resultList);
+        } catch(e){
+            console.log(e);
+            callback([]);
+        }
     });
 
 
@@ -259,3 +292,7 @@ startMediasoup().then(() => {
         console.log('Server running on http://localhost:3001');
     });
 });
+//
+// setInterval(() => {
+//     console.log("MY_DEBUG1", producers);
+// }, 3000);
