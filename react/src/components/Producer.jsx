@@ -16,7 +16,7 @@ function waitForSocketId(socket) {
 
 function App() {
     const localVideo = useRef(null);
-    const webcamStream = useRef(null);
+    const webcamStream = useRef(null); // 연결 종료를 위한 useRef
     const producerTransportRef = useRef(null); // 연결 종료를 위한 useRef
     const producerRef = useRef(null); // 연결 종료를 위한 useRef
 
