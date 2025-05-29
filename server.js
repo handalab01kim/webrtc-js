@@ -2,8 +2,14 @@ import express from 'express';
 import http from 'http';
 import signaling from "./src/signaling.js";
 import createRouter from "./src/createRouter.js";
+import path from 'path';
 
 const app = express();
+const buildPath = path.join(process.cwd(), "react", "dist");
+app.use(express.static(buildPath));
+app.get((req, res) => {
+    res.sendFile(path.join(buildPath, "index.html"));
+});
 const server = http.createServer(app);
 
 // worker, router 생성

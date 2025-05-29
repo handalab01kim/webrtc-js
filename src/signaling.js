@@ -40,7 +40,8 @@ export default function(server, router) {
             }
         });
 
-        // sendTransport 생성
+        // ------------------------ producer ------------------------------//
+        // producer - sendTransport 생성
         socket.on('createProducerTransport', async (callback) => {
             try {
                 const transport = await router.createWebRtcTransport({
@@ -107,7 +108,7 @@ export default function(server, router) {
         });
 
 
-
+        // ------------------------ consumer ------------------------------//
         // consumerTransport 생성
         socket.on('createConsumerTransport', async (callback) => {
             try {

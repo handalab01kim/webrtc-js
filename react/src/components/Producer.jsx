@@ -52,7 +52,7 @@ function App() {
             socket.emit('getRtpCapabilities', resolve);
         });
 
-        // 미디어수프 라우터의 RTP 기능을 기기에 로드 => 지원하는 RTP 미디어 코덱/설정 파악
+        // 미디어숲 라우터의 RTP 기능을 기기에 로드 => 지원하는 RTP 미디어 코덱/설정 파악
         await device.load({routerRtpCapabilities: rtpCapabilities});
         return device;
     }
