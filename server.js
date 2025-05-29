@@ -7,7 +7,7 @@ import path from 'path';
 const app = express();
 const buildPath = path.join(process.cwd(), "react", "dist");
 app.use(express.static(buildPath));
-app.get((req, res) => {
+app.get(["/", "/producer", "/consumer"], (req, res) => {
     res.sendFile(path.join(buildPath, "index.html"));
 });
 const server = http.createServer(app);

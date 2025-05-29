@@ -30,7 +30,7 @@ function App() {
         const transportInfo = await new Promise((resolve, reject) => {
             socket.emit('createConsumerTransport', resolve);
         });
-
+        console.log("new_debug", transportInfo);
         console.log('Consumer Transport 정보 받음');
 
         const consumerTransport = device.createRecvTransport(transportInfo);
