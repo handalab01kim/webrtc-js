@@ -133,7 +133,39 @@ function App() {
 
     useEffect(() => {
         // start();
+        // /*
 
+        // setInterval(()=>{
+        //     console.log(remoteVideo.current);
+        // }, 2000);
+
+        setTimeout(() => {
+            console.log("MY_DEBUG1",consumerRef.current)
+            console.log("MY_DEBUG2",consumerRef.current.track)
+            console.log("MY_DEBUG3",typeof consumerRef.current.track.getStats)
+            if (
+                consumerRef.current &&
+                consumerRef.current.track &&
+                typeof consumerRef.current.track.getStats === 'function'
+            ) {
+                consumerRef.current.track.getStats().then((stats) => {
+                    stats.forEach((report) => {
+                        if (report.type === 'inbound-rtp' && report.kind === 'video') {
+                            console.log('📡 영상 수신 중:', {
+                                frameWidth: report.frameWidth,
+                                frameHeight: report.frameHeight,
+                                framesPerSecond: report.framesPerSecond,
+                                packetsReceived: report.packetsReceived,
+                                bytesReceived: report.bytesReceived,
+                            });
+                        }
+                    });
+                });
+            }
+        }, 2000);
+
+
+        // * */
         return () => {
             if (consumerRef.current) {
                 console.log("MY_DEBUG4")
@@ -165,6 +197,8 @@ function App() {
                     </button>
                 )}
                 {ready &&(
+                    <>
+                    test
                     <video
                         ref={remoteVideo}
                         autoPlay
@@ -178,6 +212,7 @@ function App() {
                             display: connected ? 'block' : 'none'
                         }}
                     />
+                    </>
                 )}
             </div>
         </>

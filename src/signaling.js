@@ -45,7 +45,7 @@ export default function(server, router) {
         socket.on('createProducerTransport', async (callback) => {
             try {
                 const transport = await router.createWebRtcTransport({
-                    listenIps: [{ ip: '127.0.0.1', announcedIp: null }],
+                    listenIps: [{ ip: '0.0.0.0', announcedIp: "172.30.1.88" }],
                     enableUdp: true,
                     enableTcp: true,
                     preferUdp: true,
@@ -113,7 +113,7 @@ export default function(server, router) {
         socket.on('createConsumerTransport', async (callback) => {
             try {
                 const transport = await router.createWebRtcTransport({
-                    listenIps: [{ ip: '127.0.0.1', announcedIp: null }],
+                    listenIps: [{ ip: '0.0.0.0', announcedIp: "172.30.1.88" }],
                     enableUdp: true,
                     enableTcp: true,
                     preferUdp: true,
