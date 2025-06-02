@@ -25,9 +25,9 @@ function App() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: {
-                    width: { ideal: 1920  },
-                    height: { ideal: 1080 },
-                    frameRate: { ideal: 30 }
+                    width: {ideal: 1920},
+                    height: {ideal: 1080},
+                    frameRate: {ideal: 30}
                 },
                 // video: true,
                 audio: true,
@@ -69,11 +69,11 @@ function App() {
         // Transport 이벤트 핸들러 설정
         // 'connect': 서버측에서 전송하는 이벤트 X, mediasoup-client가 호출하는 추상적인 이벤트
         // connect 이벤트 발생 시 서버에 DTLS 매개변수 전달
-        producerTransport.on('connect', async ({ dtlsParameters }, callback, errback) => {
+        producerTransport.on('connect', async ({dtlsParameters}, callback, errback) => {
             try {
                 await new Promise((resolve) => {
                     // 로컬 DTLS 매개변수를 서버 측 transport에 신호 전달
-                    socket.emit('connectProducerTransport', { dtlsParameters }, resolve);
+                    socket.emit('connectProducerTransport', {dtlsParameters}, resolve);
                 });
                 // transport에 parameters들이 전송되었다는 것을 알려주는 역할
                 callback();
@@ -84,16 +84,16 @@ function App() {
         });
 
         // 미디어 전송 시작 이벤트
-        producerTransport.on('produce', async ({ kind, rtpParameters }, callback, errback) => {
+        producerTransport.on('produce', async ({kind, rtpParameters}, callback, errback) => {
             try {
                 console.log("MY_DEBUG^^^^^ rtpParameters; ", rtpParameters);
-                const { id } = await new Promise(async(resolve) => {
+                const {id} = await new Promise(async (resolve) => {
                     const socketId = await waitForSocketId(socket);
                     // socket.emit('produce', { kind, roomId: socketId, rtpParameters }, resolve);
-                    socket.emit('produce', { kind, roomId: TEST_ROOM, rtpParameters }, resolve);
+                    socket.emit('produce', {kind, roomId: TEST_ROOM, rtpParameters}, resolve);
                     // socket.emit('produce', { kind, rtpParameters }, resolve);
                 });
-                callback({ id });
+                callback({id});
             } catch (error) {
                 errback(error);
                 console.log('미디어 스트림 생성 실패: ' + error.message);
@@ -132,12 +132,9 @@ function App() {
         const audioTracks = stream.getAudioTracks();
         if (audioTracks.length > 0) {
             const audioTrack = audioTracks[0];
-            await producerTransport.produce({ track: audioTrack });
+            await producerTransport.produce({track: audioTrack});
         }
     }
-
-
-
 
 
     const start = async () => {
@@ -187,19 +184,14 @@ function App() {
     }, []);
 
     return (
-        <>
-            <h2>WebRTC Producer</h2>
-            <div>
-                <video
-                    ref={localVideo}
-                    autoPlay
-                    playsInline
-                    controls
-                    muted
-                    style={{ width: '100%', maxWidth: '640px', border: '1px solid #ccc' }}
-                />
-            </div>
-        </>
+        <video
+            ref={localVideo}
+            autoPlay
+            playsInline
+            controls
+            muted
+            style={{width: '100%', maxWidth: '640px', border: '1px solid #ccc'}}
+        />
     );
 }
 

@@ -6,11 +6,9 @@ import {serverUrl} from "../config/config.js";
 const mediasoupClient = await import('mediasoup-client');
 const socket = io(serverUrl);
 
-function App() {
+function Consumer({onStreams}) {
     const consumerTransportRef = useRef(null); // 하나의 transport로 multiplexing
     const consumerRefs = useRef(new Map());
-    const [remoteStreams, setRemoteStreams] = useState([]); // 개별 영상
-    const [isConsuming, setIsConsuming] = useState(false);  // 전체 영상 consume 시작
 
     // device 생성
     const createDevice = async () => {
@@ -81,78 +79,30 @@ function App() {
         }
 
         const newRemoteStreams = Array.from(streamsMap.entries()).map(([socketId, stream]) => ({ socketId, stream }));
-        setRemoteStreams(newRemoteStreams);
-        // socket.on('producerClosed', () => {
-        //     console.log('Producer 연결 종료');
-        //     setConnected(false);
-        //
-        //     if (remoteVideo.current) {
-        //         remoteVideo.current.srcObject = null;
-        //         console.log("MY_DEBUG2")
-        //     }
-        //
-        //     if (consumerRef.current) {
-        //         consumerRef.current.close();
-        //         console.log("MY_DEBUG3")
-        //     }
-        // });
+        if (onStreams) onStreams(newRemoteStreams);
     };
 
-    const start = async () => {
-        try {
-            // device 생성
-            const device = await createDevice();
-            console.log("createDevice");
 
-            // recvTransport 생성
-            const consumerTransport = await setConsumer(device);
-            console.log("setConsumer");
-
-            // consume 시작
-            await startConsuming(device, consumerTransport);
-            console.log("startConsuming");
-
-
-        } catch (e) {
-            console.log(e);
-        }
-    };
 
     useEffect(() => {
-        // start();
-        // /*
+        const start = async () => {
+            try {
+                // device 생성
+                const device = await createDevice();
 
-        // setInterval(()=>{
-        //     console.log(remoteVideo.current);
-        // }, 2000);
+                // recvTransport 생성
+                const consumerTransport = await setConsumer(device);
 
-        // setInterval(() => {
-        //     console.log("MY_DEBUG1",consumerRef.current)
-        //     console.log("MY_DEBUG2",consumerRef.current.track)
-        //     console.log("MY_DEBUG3",typeof consumerRef.current.track.getStats)
-        //     if (
-        //         consumerRef.current &&
-        //         consumerRef.current.track &&
-        //         typeof consumerRef.current.track.getStats === 'function'
-        //     ) {
-        //         consumerRef.current.track.getStats().then((stats) => {
-        //             stats.forEach((report) => {
-        //                 if (report.type === 'inbound-rtp' && report.kind === 'video') {
-        //                     console.log('📡 영상 수신 중:', {
-        //                         frameWidth: report.frameWidth,
-        //                         frameHeight: report.frameHeight,
-        //                         framesPerSecond: report.framesPerSecond,
-        //                         packetsReceived: report.packetsReceived,
-        //                         bytesReceived: report.bytesReceived,
-        //                     });
-        //                 }
-        //             });
-        //         });
-        //     }
-        // }, 5000);
+                // consume 시작
+                await startConsuming(device, consumerTransport);
+                console.log("startConsuming");
 
 
-        // * */
+            } catch (e) {
+                console.log(e);
+            }
+        };
+        start();
         return () => {
             for (const consumer of consumerRefs.current.values()) {
                 consumer.close();
@@ -165,35 +115,7 @@ function App() {
     }, []);
 
 
-    return (
-        <div>
-            <h2>WebRTC Consumer</h2>
-            {!isConsuming && (
-                <button onClick={() => { setIsConsuming(true); start(); }}>Start Consume</button>
-            )}
-            {isConsuming && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
-                    {remoteStreams.map(({ socketId, stream }) => (
-                        <video
-                            key={socketId}
-                            ref={(el) => { if (el) el.srcObject = stream; }}
-                            autoPlay
-                            playsInline
-                            controls
-                            muted
-                            // style={{ width: '320px', border: '1px solid #ccc' }}
-                            style={{
-                                width: '100%',
-                                maxWidth: '640px',
-                                border: '1px solid #ccc',
-                                // display: connected ? 'block' : 'none'
-                            }}
-                        />
-                    ))}
-                </div>
-            )}
-        </div>
-    );
+    return null;
 }
 
-export default App;
+export default Consumer;
