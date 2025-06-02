@@ -1,7 +1,7 @@
 import React, {useEffect, useRef} from 'react';
 
 
-const WebRTCPlayer = ({stream}) => {
+const VideoPlayer = ({id, stream}) => {
     const videoRef = useRef(null);
 
     useEffect(() => {
@@ -15,11 +15,12 @@ const WebRTCPlayer = ({stream}) => {
 
     return (
         <video
-            ref={videoRef}
+            key={id}
+            ref={stream}
             autoPlay
             playsInline
-            muted
             controls
+            muted
             style={{
                 width: '100%',
                 maxWidth: '640px',
@@ -29,4 +30,4 @@ const WebRTCPlayer = ({stream}) => {
     );
 };
 
-export default WebRTCPlayer;
+export default VideoPlayer;
