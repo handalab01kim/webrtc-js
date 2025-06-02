@@ -7,9 +7,10 @@ import './styles.css';
 function App() {
     return (
         <BrowserRouter>
-            <nav className="app-nav">
-                <Link to="/consumer" style={{display: 'block'}}>Consumer</Link>
-                <Link to="/producer" style={{display: 'block'}}>Producer</Link>
+            <nav style ={{display: 'flex', flexDirection: 'column'}}>
+                <Link to="/" style={{display: 'inline'}}>Home</Link>
+                <Link to="/consumer" style={{display: 'inline'}}>Consumer</Link>
+                <Link to="/producer" style={{display: 'inline'}}>Producer</Link>
             </nav>
             <Routes>
                 <Route path="/" element={<h1>Home</h1>} />

@@ -1,8 +1,8 @@
 import {Server} from "socket.io";
 
 export default function(server, router) {
-    let producerTransport;
 
+    const producerTransports = new Map();
     const consumerTransports = new Map();
     const consumers = new Map();
     const producers = new Map(); // { video | audio }
@@ -17,17 +17,36 @@ export default function(server, router) {
         socket.on('disconnect', () => {
             console.log('Client disconnected:', socket.id);
 
-            const transport = consumerTransports.get(socket.id);
-            if (transport) {
-                transport.close();
+            const consumerTransport = consumerTransports.get(socket.id);
+            if (consumerTransport) {
+                console.log("MY_DEBUG transport close !!!!!")
+                consumerTransport.close();
                 consumerTransports.delete(socket.id);
             }
 
-            const consumer = consumers.get(socket.id);
-            if (consumer) {
-                consumer.close();
+            const socketConsumers = consumers.get(socket.id);
+            if (socketConsumers) {
+                for(const consumer of socketConsumers.values()){
+                    consumer.close();
+                }
                 consumers.delete(socket.id);
             }
+
+            const producerTransport = producerTransports.get(socket.id);
+            if(producerTransport) {
+                producerTransport.close();
+                producerTransports.delete(socket.id);
+            }
+
+            const socketProducers = producers.get(socket.id);
+            if (socketProducers) {
+                for (const producer of socketProducers.values()) {
+                    producer.close();
+                }
+                producers.delete(socket.id);
+            }
+            console.log("NEW_DEBUG producers; ", producers);
+            console.log("NEW_DEBUG consumers; ", consumers);
         });
 
         // RTP capabilities 반환
@@ -53,11 +72,12 @@ export default function(server, router) {
 
                 console.log('Producer transport created:', transport.id);
 
-                producerTransport = transport;
+                producerTransports.set(socket.id, transport);
 
                 transport.on('dtlsstatechange', (dtlsState) => {
                     console.log('Producer transport DTLS state changed to', dtlsState);
                     if (dtlsState === 'closed') {
+                        console.log("MY_DEBUG dtlsstatechange close !!!!!A")
                         transport.close();
                     }
                     console.log("MY_DEBUG##########");
@@ -78,26 +98,38 @@ export default function(server, router) {
         // producerTransport 연결
         socket.on('connectProducerTransport', async ({ dtlsParameters }, callback) => {
             try {
-                await producerTransport.connect({ dtlsParameters });
+                const transport = producerTransports.get(socket.id);
+                if (!transport) {
+                    throw new Error('Producer transport not found');
+                }
+
+                await transport.connect({ dtlsParameters });
                 console.log('Producer transport connected');
-                callback({ success: true });
+
+                if (callback) callback({ success: true });
             } catch (error) {
                 console.error('Error connecting producer transport:', error);
-                callback({ error: error.message });
+                if (callback) callback({ error: error.message });
             }
         });
 
         // 미디어 전송 시작
-        socket.on('produce', async ({ kind, rtpParameters }, callback) => {
+        socket.on('produce', async ({ kind, roomId, rtpParameters }, callback) => {
+            console.log("my_debug produce roomId:", roomId);
             try {
-                const newProducer = await producerTransport.produce({ kind, rtpParameters });
+                const transport = producerTransports.get(socket.id);
+                if (!transport) throw new Error('produce: producerTransport not found');
 
-                producers.set(kind, newProducer); // kind 기준 저장
+                const newProducer = await transport.produce({ kind, rtpParameters });
+
+                if (!producers.has(socket.id)) producers.set(socket.id, new Map());
+                producers.get(socket.id).set(kind, newProducer);
+
                 console.log('Producer created:', newProducer.id, 'kind:', kind);
 
                 newProducer.on('transportclose', () => {
                     console.log('Producer transport closed for kind:', kind);
-                    producers.delete(kind);
+                    producers.get(socket.id)?.delete(kind);
                 });
 
                 callback({ id: newProducer.id });
@@ -126,6 +158,7 @@ export default function(server, router) {
                 transport.on('dtlsstatechange', (dtlsState) => {
                     console.log('Consumer transport DTLS state changed to', dtlsState);
                     if (dtlsState === 'closed') {
+                        console.log("MY_DEBUG dtlsstatechange close !!!!!B")
                         transport.close();
                     }
                 });
@@ -159,19 +192,64 @@ export default function(server, router) {
             }
         });
 
+        // socket.on('getProducers', (callback) => {
+        //     console.log("MYMYMYMY_DEBUG", producers);
+        //     // const list = [...producers.entries()].map(([kind, prod]) => ({
+        //     //     kind,
+        //     //     id: prod.id
+        //     // }));
+        //     // console.log("NEW_DEBUG", list);
+        //     // callback(list);
+        //     const list = [];
+        //     for (const [sockId, kindMap] of producers.entries()) {
+        //         for (const [kind, producer] of kindMap.entries()) {
+        //             list.push({ socketId: sockId, kind, id: producer.id });
+        //         }
+        //     }
+        //     console.log("Getting list of producers", list);
+        //     callback(list);
+        // });
+
         socket.on('getProducers', (callback) => {
-            const list = [...producers.entries()].map(([kind, prod]) => ({
-                kind,
-                id: prod.id
-            }));
+            const list = [];
+
+            for (const [socketId, kindMap] of producers.entries()) {
+                const streams = [];
+
+                for (const [kind, producer] of kindMap.entries()) {
+                    streams.push({
+                        kind,
+                        producerId: producer.id
+                    });
+                }
+
+                list.push({
+                    socketId,
+                    streams
+                });
+            }
+
+            console.log("Structured producer list:", list);
             callback(list);
         });
+
+
 
 
         // 미디어 consume 시작
         socket.on('consume', async ({ producerId, rtpCapabilities }, callback) => {
             try {
-                const selectedProducer = [...producers.values()].find(p => p.id === producerId);
+                // const selectedProducer = [...producers.values()].find(p => p.id === producerId);
+                // if (!selectedProducer) throw new Error('Producer not found');
+                let selectedProducer = null;
+                for (const kindMap of producers.values()) {
+                    for (const producer of kindMap.values()) {
+                        if (producer.id === producerId) {
+                            selectedProducer = producer;
+                            break;
+                        }
+                    }
+                }
                 if (!selectedProducer) throw new Error('Producer not found');
 
                 if (!router.canConsume({ producerId: selectedProducer.id, rtpCapabilities })) {
@@ -187,9 +265,11 @@ export default function(server, router) {
                     paused: true,
                 });
 
-                consumers.set(socket.id, consumer);
+                if (!consumers.has(socket.id)) consumers.set(socket.id, new Map());
+                consumers.get(socket.id).set(producerId, consumer);
 
-                consumer.on('transportclose', () => consumers.delete(socket.id));
+
+                consumer.on('transportclose', () => consumers.get(socket.id)?.delete(socket.id));
                 consumer.on('producerclose', () => {
                     consumers.delete(socket.id);
                     socket.emit('producerClosed');
