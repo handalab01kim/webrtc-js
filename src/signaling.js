@@ -117,12 +117,14 @@ export default function(server, router) {
         socket.on('produce', async ({ kind, roomId, rtpParameters }, callback) => {
             console.log("my_debug produce roomId:", roomId);
             try {
+                let isSecond=false;
                 const transport = producerTransports.get(socket.id);
                 if (!transport) throw new Error('produce: producerTransport not found');
 
                 const newProducer = await transport.produce({ kind, rtpParameters });
 
-                if (!producers.has(socket.id)) producers.set(socket.id, new Map());
+                if (!producers.has(socket.id)) producers.set(socket.id, new Map()); // audio/video 중 첫번 째 producer 전달
+                else isSecond=true; // 두번째 전달
                 producers.get(socket.id).set(kind, newProducer);
 
                 console.log('Producer created:', newProducer.id, 'kind:', kind);
@@ -131,6 +133,21 @@ export default function(server, router) {
                     console.log('Producer transport closed for kind:', kind);
                     producers.get(socket.id)?.delete(kind);
                 });
+
+                if (isSecond){ // audio+video producer 기존 consumer들에게 알림
+                    console.log("HERE!!!!!MY_DEBUG");
+                    socket.broadcast.emit('newProducer', {
+                        // socketId: socket.id,
+                        // streams:[
+                        //     {
+                        //         kind,
+                        //         producerId: newProducer.id,
+                        //     },
+                        //     {
+                        //     }
+                        // ],
+                    });
+                }
 
                 callback({ id: newProducer.id });
             } catch (error) {

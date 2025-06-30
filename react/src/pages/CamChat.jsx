@@ -1,9 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Producer from '../components/Producer'; // 기존 App 컴포넌트를 Producer로 이름 변경했다고 가정
 import Consumer from '../components/Consumer';
 
 function CamChat() {
     const [remoteStreams, setRemoteStreams] = useState([]);
+
+    useEffect(()=>{
+        console.log("########################%$%%@%#@$%#@$%@#$%@#$%#😒😒😒😒😒😎")
+    }, [remoteStreams]);
 
     return (
         <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '16px' }}>
@@ -30,7 +34,7 @@ function CamChat() {
             </div>
 
             {/* Consumer는 영상만 수집, 렌더링은 CamChat에서 */}
-            <Consumer onStreams={setRemoteStreams} />
+            <Consumer remoteStreams={remoteStreams} onStreams={setRemoteStreams} />
         </div>
     );
 }
