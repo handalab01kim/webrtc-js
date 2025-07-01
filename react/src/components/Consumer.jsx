@@ -1,11 +1,11 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {io} from 'socket.io-client';
-import {serverUrl} from "../config/config.js";
+// import {io} from 'socket.io-client';
+// import {serverUrl} from "../config/config.js";
 import { useStreamStore } from '../store/streamStore'; 
+import { socket } from "../components/WebSocket";
 
 
 const mediasoupClient = await import('mediasoup-client');
-const socket = io(serverUrl);
 
 // function Consumer({remoteStreams, onStreams}) {
 function Consumer() {

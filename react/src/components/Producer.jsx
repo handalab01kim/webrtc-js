@@ -1,9 +1,9 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {io} from 'socket.io-client';
-import {serverUrl} from "../config/config.js";
+// import {io} from 'socket.io-client';
+// import {serverUrl} from "../config/config.js";
 
 const mediasoupClient = await import('mediasoup-client');
-const socket = io(serverUrl);
+import { socket } from "../components/WebSocket";
 
 const TEST_ROOM = 1;
 
