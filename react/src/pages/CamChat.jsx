@@ -1,22 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import Producer from '../components/Producer'; // 기존 App 컴포넌트를 Producer로 이름 변경했다고 가정
 import Consumer from '../components/Consumer';
+import { useStreamStore } from '../store/streamStore'; 
+
 
 function CamChat() {
-    const [remoteStreams, setRemoteStreams] = useState([]);
-
+    const {remoteStreams, deleteAllRemoteStream} = useStreamStore(); 
+    // useEffect(()=>{
+    //     setTimeout(()=>{
+    //         console.log("😎", remoteStreams)
+    //     },2000);
+    //     return ()=>{
+    //     };
+    // }, [remoteStreams]);
     useEffect(()=>{
-        console.log("########################%$%%@%#@$%#@$%@#$%@#$%#😒😒😒😒😒😎")
-    }, [remoteStreams]);
+        // rerendering: auto
+        return ()=>{
+            // delete all remoteStream
+            deleteAllRemoteStream();
+        };
+    }, []);
 
     return (
         <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '16px' }}>
-            {/* 내 웹캠 */}
+            {/* Producer (producing 시작, 반환 객체는 단순 웹캠 스트림)*/}
             <div style={{ flex: '0 0 auto' }}>
                 <Producer />
             </div>
 
-            {/* 소비된 원격 영상들 */}
+            {/* consuming 시작된 remoteStreams 영상 리스트 렌더링 */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
                 {remoteStreams.map(({ socketId, stream }) => (
                     <video
@@ -33,8 +45,8 @@ function CamChat() {
                 ))}
             </div>
 
-            {/* Consumer는 영상만 수집, 렌더링은 CamChat에서 */}
-            <Consumer remoteStreams={remoteStreams} onStreams={setRemoteStreams} />
+            {/* Consumer => 영상 수집, 렌더링은 CamChat 컴포넌트에서 */}
+            <Consumer/>
         </div>
     );
 }

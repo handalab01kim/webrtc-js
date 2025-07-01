@@ -6,6 +6,12 @@ import signaling from "./src/signaling.js";
 import createRouter from "./src/createRouter.js";
 import path from 'path';
 
+
+process.on("uncaughtException", (err) => {
+    console.error("\n\n\nUncaught Exception:", err.message,"\n\n\n");
+});
+
+
 const app = express();
 const buildPath = path.join(process.cwd(), "react", "dist");
 app.use(express.static(buildPath));

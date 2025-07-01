@@ -19,7 +19,6 @@ export default function(server, router) {
 
             const consumerTransport = consumerTransports.get(socket.id);
             if (consumerTransport) {
-                console.log("MY_DEBUG transport close !!!!!")
                 consumerTransport.close();
                 consumerTransports.delete(socket.id);
             }
@@ -38,16 +37,20 @@ export default function(server, router) {
                 producerTransports.delete(socket.id);
             }
 
+            socket.broadcast.emit('producerClosed', {
+                socketId: socket.id,
+            });
+            // producers.get(socket.id) 구조: Map(kind → producer)
             const socketProducers = producers.get(socket.id);
+            // console.log(producers)
             if (socketProducers) {
-                for (const producer of socketProducers.values()) {
-                    producer.close();
+                for (const [kind, producer] of socketProducers.entries()) {
+                    // 다른 consumer에게 알려줌
+                    producer.close(); // 리소스 정리
                 }
                 producers.delete(socket.id);
             }
-            console.log("NEW_DEBUG producers; ", producers);
-            console.log("NEW_DEBUG consumers; ", consumers);
-        });
+        }); // disconnect //
 
         // RTP capabilities 반환
         socket.on('getRtpCapabilities', (callback) => {
@@ -80,7 +83,7 @@ export default function(server, router) {
                         console.log("MY_DEBUG dtlsstatechange close !!!!!A")
                         transport.close();
                     }
-                    console.log("MY_DEBUG##########");
+                    // console.log("MY_DEBUG##########");
                 });
 
                 callback({
@@ -135,7 +138,6 @@ export default function(server, router) {
                 });
 
                 if (isSecond){ // audio+video producer 기존 consumer들에게 알림
-                    console.log("HERE!!!!!MY_DEBUG");
                     socket.broadcast.emit('newProducer', {
                         // socketId: socket.id,
                         // streams:[
@@ -274,7 +276,10 @@ export default function(server, router) {
                 }
 
                 const transport = consumerTransports.get(socket.id);
-                if (!transport) throw new Error('Consumer transport not found');
+                if (!transport) {
+                    console.log('Consumer transport not found(not created)')
+                    return;
+                };
 
                 const consumer = await transport.consume({
                     producerId: selectedProducer.id,
