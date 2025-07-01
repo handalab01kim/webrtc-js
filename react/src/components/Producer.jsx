@@ -1,9 +1,9 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {io} from 'socket.io-client';
-import {serverUrl} from "../config/config.js";
+// import {io} from 'socket.io-client';
+// import {serverUrl} from "../config/config.js";
 
 const mediasoupClient = await import('mediasoup-client');
-const socket = io(serverUrl);
+import { useSocketStore } from '../store/socketStore'; 
 
 const TEST_ROOM = 1;
 
@@ -20,6 +20,10 @@ function App() {
     const producerTransportRef = useRef(null); // 연결 종료를 위한 useRef
     const producerRef = useRef(null); // 연결 종료를 위한 useRef
     const audioRef = useRef(null); // audioRef 별도로 관리 -> 개별 pause 가능
+    
+    const {socket, emit} = useSocketStore(); 
+    // const socket = useSocketStore.getState().socket;
+    // const socket = useSocketStore(s=>s.socket); 
 
     // video/ audio pause
     const [isVideoMuted, setIsVideoMuted] = useState(false);
@@ -92,7 +96,7 @@ function App() {
 
         // callback 함수를 보내 rtpCapabilities(mediasoup Router가 지원하는 RTP 미디어 코덱/설정의 목록)를 동기적으로 받음
         const rtpCapabilities = await new Promise((resolve) => {
-            socket.emit('getRtpCapabilities', resolve);
+            emit('getRtpCapabilities', resolve);
         });
 
         // 미디어숲 라우터의 RTP 기능을 기기에 로드 => 지원하는 RTP 미디어 코덱/설정 파악
@@ -104,7 +108,7 @@ function App() {
     const setProducer = async (device) => {
         // Send Transport 생성
         const transportInfo = await new Promise((resolve) => {
-            socket.emit('createProducerTransport', resolve);
+            emit('createProducerTransport', resolve);
         });
         const producerTransport = device.createSendTransport(transportInfo);
         producerTransportRef.current = producerTransport;
@@ -116,7 +120,7 @@ function App() {
             try {
                 await new Promise((resolve) => {
                     // 로컬 DTLS 매개변수를 서버 측 transport에 신호 전달
-                    socket.emit('connectProducerTransport', {dtlsParameters}, resolve);
+                    emit('connectProducerTransport', {dtlsParameters}, resolve);
                 });
                 // transport에 parameters들이 전송되었다는 것을 알려주는 역할
                 callback();
@@ -133,7 +137,7 @@ function App() {
                 const {id} = await new Promise(async (resolve) => {
                     const socketId = await waitForSocketId(socket);
                     // socket.emit('produce', { kind, roomId: socketId, rtpParameters }, resolve);
-                    socket.emit('produce', {kind, roomId: TEST_ROOM, rtpParameters}, resolve);
+                    emit('produce', {kind, roomId: TEST_ROOM, rtpParameters}, resolve);
                     // socket.emit('produce', { kind, rtpParameters }, resolve);
                 });
                 callback({id});

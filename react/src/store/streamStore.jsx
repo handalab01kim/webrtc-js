@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 
+// typeof remoteStreams : [{socketId, stream}]
 export const useStreamStore = create((set,get) => ({
     remoteStreams: [],
     setRemoteStreams: (newStreamsList) => set({ remoteStreams: newStreamsList }),

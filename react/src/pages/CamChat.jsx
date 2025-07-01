@@ -2,19 +2,21 @@ import React, { useState, useEffect } from 'react';
 import Producer from '../components/Producer'; // 기존 App 컴포넌트를 Producer로 이름 변경했다고 가정
 import Consumer from '../components/Consumer';
 import { useStreamStore } from '../store/streamStore'; 
-
+import { useSocketStore } from '../store/socketStore'; 
+import {serverUrl} from "../config/config.js";
 
 function CamChat() {
     const {remoteStreams, deleteAllRemoteStream} = useStreamStore(); 
+    const {connect} = useSocketStore(); 
     // useEffect(()=>{
     //     setTimeout(()=>{
-    //         console.log("😎", remoteStreams)
+    //         console.log("~😎~", remoteStreams)
     //     },2000);
     //     return ()=>{
     //     };
     // }, [remoteStreams]);
     useEffect(()=>{
-        // rerendering: auto
+        connect(serverUrl);
         return ()=>{
             // delete all remoteStream
             deleteAllRemoteStream();

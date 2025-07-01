@@ -1,17 +1,23 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {io} from 'socket.io-client';
-import {serverUrl} from "../config/config.js";
+// import {io} from 'socket.io-client';
+// import {serverUrl} from "../config/config.js";
+import { useSocketStore } from '../store/socketStore'; 
 import { useStreamStore } from '../store/streamStore'; 
 
-
+// camChat에서 생성, c&p에서 사용만, 새로connect는 덮어씀 @@@@
 const mediasoupClient = await import('mediasoup-client');
-const socket = io(serverUrl);
+// const socket = io(serverUrl);
 
 // function Consumer({remoteStreams, onStreams}) {
 function Consumer() {
     const consumerTransportRef = useRef(null); // 하나의 transport로 multiplexing
     const consumerRefs = useRef(new Map());
-    const {remoteStreams,setRemoteStreams,addRemoteStreams,deleteRemoteStream} = useStreamStore(); 
+    const {remoteStreams,setRemoteStreams,addRemoteStreams,deleteRemoteStream} = useStreamStore();  // remoteStreams == consume할 producer list
+    
+    // const socket = useSocketStore(s=>s.socket); 
+    const {socket, emit} = useSocketStore(); 
+    
+    
     // let producerList;
 
     // device 생성
@@ -19,7 +25,7 @@ function Consumer() {
         const device = new mediasoupClient.Device();
 
         const rtpCapabilities = await new Promise((resolve, reject) => {
-            socket.emit('getRtpCapabilities', resolve);
+            emit('getRtpCapabilities', resolve);
         });
 
         await device.load({routerRtpCapabilities: rtpCapabilities});
@@ -29,7 +35,7 @@ function Consumer() {
     // recvTransport 생성
     const setConsumer = async (device) => {
         const transportInfo = await new Promise((resolve, reject) => {
-            socket.emit('createConsumerTransport', resolve);
+            emit('createConsumerTransport', resolve);
         });
         console.log('Consumer Transport 정보 받음', transportInfo);
 
@@ -40,7 +46,7 @@ function Consumer() {
             try {
                 console.log('Consumer Transport 연결 중...');
                 await new Promise((resolve, reject) => {
-                    socket.emit('connectConsumerTransport', {dtlsParameters}, resolve);
+                    emit('connectConsumerTransport', {dtlsParameters}, resolve);
                 });
                 console.log('Consumer Transport 연결됨');
                 callback();
@@ -57,7 +63,7 @@ function Consumer() {
     const startConsuming = async (device, consumerTransport) => {
         // - producers 목록 받아오기
         const producers = await new Promise((resolve) => {
-            socket.emit('getProducers', resolve); // [{kind: "video", id: "..."}]
+            emit('getProducers', resolve); // [{kind: "video", id: "..."}]
         });
         console.log("my_debug: producers", producers);
 
@@ -69,7 +75,7 @@ function Consumer() {
             const mediaStream = new MediaStream();
             for (const { kind, producerId } of streams) {
                 const { id, rtpParameters } = await new Promise((resolve, reject) => {
-                    socket.emit('consume', { producerId, rtpCapabilities: device.rtpCapabilities }, (res) => {
+                    emit('consume', { producerId, rtpCapabilities: device.rtpCapabilities }, (res) => {
                         if (res.error) reject(res.error);
                         else resolve(res);
                     });
@@ -92,7 +98,7 @@ function Consumer() {
         // remoteStreams: 기존 history 목록(CamChat.jsx에서 유지중인 목록)
         // - producers 목록 받아오기
         const producers = await new Promise((resolve) => {
-            socket.emit('getProducers', resolve); // [{kind: "video", id: "..."}]
+            emit('getProducers', resolve); // [{kind: "video", id: "..."}]
         });
         
         
@@ -106,7 +112,7 @@ function Consumer() {
             const mediaStream = new MediaStream();
             for (const { kind, producerId } of streams) {
                 const { id, rtpParameters } = await new Promise((resolve, reject) => {
-                    socket.emit('consume', { producerId, rtpCapabilities: device.rtpCapabilities }, (res) => {
+                    emit('consume', { producerId, rtpCapabilities: device.rtpCapabilities }, (res) => {
                         if (res.error) reject(res.error);
                         else resolve(res);
                     });
