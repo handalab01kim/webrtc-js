@@ -19,6 +19,49 @@ function App() {
     const webcamStream = useRef(null); // 연결 종료를 위한 useRef
     const producerTransportRef = useRef(null); // 연결 종료를 위한 useRef
     const producerRef = useRef(null); // 연결 종료를 위한 useRef
+    const audioRef = useRef(null); // audioRef 별도로 관리 -> 개별 pause 가능
+
+    // video/ audio pause
+    const [isVideoMuted, setIsVideoMuted] = useState(false);
+    const [isAudioMuted, setIsAudioMuted] = useState(false);
+
+    const toggleVideo = () => {
+        if (!producerRef.current || producerRef.current.kind !== 'video') return;
+        const track = producerRef.current.track;
+        if (!track) return;
+
+        if (isVideoMuted) {
+            // console.log("video-stream-resume");
+            track.enabled = true;
+            producerRef.current.resume();
+        } else {
+            // console.log("video-stream-pause");
+            track.enabled = false;
+            producerRef.current.pause();
+        }
+        setIsVideoMuted(!isVideoMuted);
+    };
+
+    const toggleAudio = () => {
+        if (!audioRef.current || audioRef.current.kind !== 'audio') return;
+        const track = audioRef.current.track;
+        if (!track) return;
+
+        if (isAudioMuted) {
+            // console.log("audio-stream-resume");
+            track.enabled = true;
+            audioRef.current.resume();
+        } else {
+            // console.log("audio-stream-pause");
+            track.enabled = false;
+            audioRef.current.pause();
+            ////// audioRef.current.replaceTrack(null);
+        }
+        setIsAudioMuted(!isAudioMuted);
+    };
+
+
+
 
     // 웹캠 useRef로 받아오기
     const getWebcamVideo = async () => {
@@ -132,7 +175,7 @@ function App() {
         const audioTracks = stream.getAudioTracks();
         if (audioTracks.length > 0) {
             const audioTrack = audioTracks[0];
-            await producerTransport.produce({track: audioTrack});
+            audioRef.current = await producerTransport.produce({track: audioTrack});
         }
     }
 
@@ -176,6 +219,9 @@ function App() {
             if (producerRef.current) {
                 producerRef.current.close();
             }
+            if (audioRef.current) {
+                audioRef.current.close();
+            }
             if (producerTransportRef.current) {
                 producerTransportRef.current.close();
             }
@@ -184,14 +230,25 @@ function App() {
     }, []);
 
     return (
-        <video
-            ref={localVideo}
-            autoPlay
-            playsInline
-            controls
-            muted
-            style={{width: '100%', maxWidth: '640px', border: '1px solid #ccc'}}
-        />
+        <>            
+            <div style={{padding: '0.1rem', margin: '0.1rem'}}>
+                <button onClick={toggleVideo} style={{padding: '0.3rem', margin: '0.1rem', backgroundColor:"white", borderRadius:"3px"}}>
+                    {isVideoMuted ? '비디오 켜기' : '비디오 끄기'}
+                </button>
+                <button onClick={toggleAudio} style={{padding: '0.3rem', margin: '0.1rem', backgroundColor:"white", borderRadius:"3px"}}>
+                    {isAudioMuted ? '오디오 켜기' : '오디오 끄기'}
+                </button>
+            </div>
+                
+            <video
+                ref={localVideo}
+                autoPlay
+                playsInline
+                controls
+                muted
+                style={{width: '100%', maxWidth: '640px', border: '1px solid #ccc'}}
+            />
+        </>
     );
 }
 
