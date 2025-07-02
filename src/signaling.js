@@ -16,6 +16,8 @@ export default function(server, router) {
 
         socket.on('disconnect', () => {
             console.log('Client disconnected:', socket.id);
+            console.log("@@@1", producers.size)
+            console.log("@@@2", producerTransports.size)
 
             const consumerTransport = consumerTransports.get(socket.id);
             if (consumerTransport) {
@@ -75,6 +77,7 @@ export default function(server, router) {
 
                 console.log('Producer transport created:', transport.id);
 
+                if (!socket.connected) return; // socket 연결 없는 Transport 생성 방지
                 producerTransports.set(socket.id, transport);
 
                 transport.on('dtlsstatechange', (dtlsState) => {
@@ -261,8 +264,15 @@ export default function(server, router) {
                 // const selectedProducer = [...producers.values()].find(p => p.id === producerId);
                 // if (!selectedProducer) throw new Error('Producer not found');
                 let selectedProducer = null;
+                // console.log("###1", producers)
+                // console.log("###1.1", producers.values())
                 for (const kindMap of producers.values()) {
+                    // console.log("###2", kindMap)
+                    // console.log("###2.1", kindMap.values())
                     for (const producer of kindMap.values()) {
+                        // console.log("###3", producer)
+                        // console.log("###3.1", producer.id)
+                        // console.log("###3.2", producerId)
                         if (producer.id === producerId) {
                             selectedProducer = producer;
                             break;
