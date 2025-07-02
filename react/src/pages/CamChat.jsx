@@ -29,6 +29,8 @@ function CamChat() {
             </div>
 
             {/* consuming 시작된 remoteStreams 영상 리스트 렌더링 */}
+            { remoteStreams.length==0 ? (<div>Loading...</div>
+            ):(
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
                 {remoteStreams.map(({ socketId, stream }) => (
                     <video
@@ -44,6 +46,8 @@ function CamChat() {
                     />
                 ))}
             </div>
+            )}
+
 
             {/* Consumer => 영상 수집, 렌더링은 CamChat 컴포넌트에서 */}
             <Consumer/>

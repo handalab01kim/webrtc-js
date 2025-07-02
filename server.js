@@ -2,13 +2,15 @@ import express from 'express';
 // import http from 'http';
 import https from 'https';
 import fs from 'fs';
+import path from 'path';
 import signaling from "./src/signaling.js";
 import createRouter from "./src/createRouter.js";
-import path from 'path';
+import constomLog from "./src/console.log.js";
 
+constomLog();
 
 process.on("uncaughtException", (err) => {
-    console.error("\n\n\nUncaught Exception:", err.message,"\n\n\n");
+    console.log("\n\n\nUncaught Exception:", err.message,"\n\n\n");
 });
 
 

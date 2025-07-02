@@ -77,7 +77,10 @@ export default function(server, router) {
 
                 console.log('Producer transport created:', transport.id);
 
-                if (!socket.connected) return; // socket 연결 없는 Transport 생성 방지
+                if (!socket.connected) {
+                    console.log("!!!!    createProducerTransport: !SOCKET.CONNECTED");
+                    return;
+                } // socket 연결 없는 Transport 생성 방지
                 producerTransports.set(socket.id, transport);
 
                 transport.on('dtlsstatechange', (dtlsState) => {
@@ -106,7 +109,9 @@ export default function(server, router) {
             try {
                 const transport = producerTransports.get(socket.id);
                 if (!transport) {
-                    throw new Error('Producer transport not found');
+                    console.log("producerTransport not found(connectProducerTransport): Producer 리소스 생성 중 연결 닫음");
+                    return;
+                    // throw new Error('Producer transport not found');
                 }
 
                 await transport.connect({ dtlsParameters });
@@ -125,7 +130,11 @@ export default function(server, router) {
             try {
                 let isSecond=false;
                 const transport = producerTransports.get(socket.id);
-                if (!transport) throw new Error('produce: producerTransport not found');
+                if (!transport) {
+                    console.log("producerTransport not found(produce):");
+                    return;
+                    // throw new Error('produce: producerTransport not found');
+                }
 
                 const newProducer = await transport.produce({ kind, rtpParameters });
 
@@ -201,7 +210,9 @@ export default function(server, router) {
             try {
                 const transport = consumerTransports.get(socket.id);
                 if (!transport) {
-                    throw new Error('Consumer transport not found');
+                    console.log("consumerTransport not found(connectConsumerTransport): Consumer 리소스 생성 중 연결 닫음");
+                    return;
+                    // throw new Error('Consumer transport not found');
                 }
 
                 await transport.connect({ dtlsParameters });
@@ -279,7 +290,11 @@ export default function(server, router) {
                         }
                     }
                 }
-                if (!selectedProducer) throw new Error('Producer not found');
+                if (!selectedProducer) {
+                    console.log("producerTransport not found(consume): Producer 리소스 생성 중 연결 닫음");
+                    return;
+                    // throw new Error('Producer not found');
+                }
 
                 if (!router.canConsume({ producerId: selectedProducer.id, rtpCapabilities })) {
                     throw new Error('Cannot consume with current RTP capabilities');
@@ -301,7 +316,11 @@ export default function(server, router) {
                 consumers.get(socket.id).set(producerId, consumer);
 
 
-                consumer.on('transportclose', () => consumers.get(socket.id)?.delete(socket.id));
+                consumer.on('transportclose', () => {
+                    console.log("CALLED consumer.on('transportclose', () => {}", consumers.size);
+                    consumers.get(socket.id)?.delete(socket.id);
+                    console.log("CALLED2 consumer.on('transportclose', () => {}", consumers.size);
+                });
                 consumer.on('producerclose', () => {
                     consumers.delete(socket.id);
                     socket.emit('producerClosed');
@@ -313,8 +332,20 @@ export default function(server, router) {
                     kind: consumer.kind,
                     rtpParameters: consumer.rtpParameters,
                 });
-
-                await consumer.resume();
+                if (consumer && !consumer.closed) {
+                    // console.log("consumer.resume() rejected; Consumer resource has been terminated(consume)");
+                    // return;
+                    // await consumer.resume();
+                    try {
+                        await consumer.resume();
+                    } catch (e) {
+                        if (e.message.includes("Channel request handler") && e.message.includes("not found")) {
+                            console.log("consumer.resume() failed: Consumer already closed.");
+                        } else {
+                            throw e;
+                        }
+                    }
+                }
             } catch (err) {
                 console.error('Error consuming:', err);
                 callback({ error: err.message });

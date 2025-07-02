@@ -158,14 +158,14 @@ function App() {
         // await producerTransport.produce({ track: videoTrack });
         producerRef.current = await producerTransport.produce({
             track: videoTrack,
-            // encodings: [
-            //     { maxBitrate: 100_000, scaleResolutionDownBy: 4 }, // 저화질 1/4
-            //     { maxBitrate: 300_000, scaleResolutionDownBy: 2 }, // 중화질 1/2
-            //     { maxBitrate: 1_000_000, scaleResolutionDownBy: 1 } // 원본 해상도
-            // ],
-            // // codecOptions: {
-            // //     videoGoogleStartBitrate: 1000
-            // // }
+            encodings: [
+                { maxBitrate: 100_000, scaleResolutionDownBy: 4 }, // 저화질 1/4
+                { maxBitrate: 300_000, scaleResolutionDownBy: 2 }, // 중화질 1/2
+                { maxBitrate: 1_000_000, scaleResolutionDownBy: 1 } // 원본 해상도
+            ],
+            // codecOptions: {
+            //     videoGoogleStartBitrate: 1000
+            // }
         });
         // console.log("MY_DEBUGGGGGGGGGGGGGG", producerRef.current.rtpParameters.encodings.length);
     }
@@ -233,10 +233,10 @@ function App() {
         <>            
             <div style={{padding: '0.1rem', margin: '0.1rem'}}>
                 <button onClick={toggleVideo} style={{padding: '0.3rem', margin: '0.1rem', backgroundColor:"white", borderRadius:"3px"}}>
-                    {isVideoMuted ? '비디오 켜기' : '비디오 끄기'}
+                    {isVideoMuted ? '📹X' : '📹'}
                 </button>
                 <button onClick={toggleAudio} style={{padding: '0.3rem', margin: '0.1rem', backgroundColor:"white", borderRadius:"3px"}}>
-                    {isAudioMuted ? '오디오 켜기' : '오디오 끄기'}
+                    {isAudioMuted ? '🔇' : '🔈'}
                 </button>
             </div>
                 
