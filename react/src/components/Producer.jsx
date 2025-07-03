@@ -3,7 +3,7 @@ import React, {useEffect, useRef, useState} from 'react';
 // import {serverUrl} from "../config/config.js";
 
 const mediasoupClient = await import('mediasoup-client');
-import { socket } from "../components/WebSocket";
+import { getConnectedSocket } from "../components/WebSocket";
 
 const TEST_ROOM = 1;
 
@@ -14,7 +14,9 @@ function waitForSocketId(socket) {
     });
 }// const socketId = await waitForSocketId(socket);
 
-function App() {
+function Producer({myUserId}) {
+    // console.log("id 테스트", id);
+    const socket = getConnectedSocket(myUserId);
     const localVideo = useRef(null);
     const webcamStream = useRef(null); // 연결 종료를 위한 useRef
     const producerTransportRef = useRef(null); // 연결 종료를 위한 useRef
@@ -133,7 +135,7 @@ function App() {
                 const {id} = await new Promise(async (resolve) => {
                     const socketId = await waitForSocketId(socket);
                     // socket.emit('produce', { kind, roomId: socketId, rtpParameters }, resolve);
-                    socket.emit('produce', {kind, roomId: TEST_ROOM, rtpParameters}, resolve);
+                    socket.emit('produce', {kind, rtpParameters}, resolve);
                     // socket.emit('produce', { kind, rtpParameters }, resolve);
                 });
                 callback({id});
@@ -252,4 +254,4 @@ function App() {
     );
 }
 
-export default App;
+export default Producer;

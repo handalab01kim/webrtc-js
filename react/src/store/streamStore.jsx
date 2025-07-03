@@ -7,11 +7,11 @@ export const useStreamStore = create((set,get) => ({
     //     const currentStreams = get().remoteStreams;
     //     set({ remoteStreams: currentStreams.concat(newStreamsList) });
     // },    
-    deleteRemoteStream: (droppedSocketId) => {
-        // console.log("STORE_DEBUG1",droppedSocketId)
+    deleteRemoteStream: (droppedUserId) => {
+        // console.log("STORE_DEBUG1",droppedUserId)
         // console.log("STORE_DEBUG2",get().remoteStreams)
         const filtered = get().remoteStreams.filter(
-            (item) => item.socketId !== droppedSocketId?.socketId
+            (item) => item.userId !== droppedUserId?.userId
         );
         set({ remoteStreams: filtered });
     },

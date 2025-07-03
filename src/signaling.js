@@ -12,47 +12,59 @@ export default function(server, router) {
     });
 
     io.on('connection', async (socket) => {
-        console.log('Client connected:', socket.id);
+
+        // 연결된 socket에 사용자 ID를 저장
+        const userId = socket.handshake.query.userId;
+        socket.data.userId = userId;
+        console.mine('Client connected:', socket.data.userId);
+        setTimeout(()=>{
+            console.mine("###producers.size", producers.size, socket.data.userId)
+            console.mine("###producerTransports.size", producerTransports.size, socket.data.userId)
+            console.mine("###consumers", consumers.size, socket.data.userId)
+            console.mine("###consumerTransports", consumerTransports.size, socket.data.userId)
+        }, 1500);
 
         socket.on('disconnect', () => {
-            console.mine('Client disconnected:', socket.id);
-            console.mine("@@@producers.size", producers.size)
-            console.mine("@@@producerTransports.size", producerTransports.size)
-            console.mine("@@@consumers", consumers.size)
-            console.mine("@@@consumerTransports", consumerTransports.size)
+            setTimeout(()=>{
+                console.mine('Client disconnected:', socket.data.userId);
+                console.mine("@@@producers.size", producers.size, socket.data.userId)
+                console.mine("@@@producerTransports.size", producerTransports.size, socket.data.userId)
+                console.mine("@@@consumers", consumers.size, socket.data.userId)
+                console.mine("@@@consumerTransports", consumerTransports.size, socket.data.userId)
+            }, 1500);
 
-            const consumerTransport = consumerTransports.get(socket.id);
+            const consumerTransport = consumerTransports.get(socket.data.userId);
             if (consumerTransport) {
                 consumerTransport.close();
-                consumerTransports.delete(socket.id);
+                consumerTransports.delete(socket.data.userId);
             }
 
-            const socketConsumers = consumers.get(socket.id);
+            const socketConsumers = consumers.get(socket.data.userId);
             if (socketConsumers) {
                 for(const consumer of socketConsumers.values()){
                     consumer.close();
                 }
-                consumers.delete(socket.id);
+                consumers.delete(socket.data.userId);
             }
 
-            const producerTransport = producerTransports.get(socket.id);
+            const producerTransport = producerTransports.get(socket.data.userId);
             if(producerTransport) {
                 producerTransport.close();
-                producerTransports.delete(socket.id);
+                producerTransports.delete(socket.data.userId);
             }
 
             socket.broadcast.emit('producerClosed', {
-                socketId: socket.id,
+                userId: socket.data.userId,
             });
-            // producers.get(socket.id) 구조: Map(kind → producer)
-            const socketProducers = producers.get(socket.id);
+            // producers.get(socket.data.userId) 구조: Map(kind → producer)
+            const socketProducers = producers.get(socket.data.userId);
             // console.log(producers)
             if (socketProducers) {
                 for (const [kind, producer] of socketProducers.entries()) {
                     // 다른 consumer에게 알려줌
                     producer.close(); // 리소스 정리
                 }
-                producers.delete(socket.id);
+                producers.delete(socket.data.userId);
             }
         }); // disconnect //
 
@@ -83,7 +95,7 @@ export default function(server, router) {
                     console.log("!!!!    createProducerTransport: !SOCKET.CONNECTED");
                     return;
                 } // socket 연결 없는 Transport 생성 방지
-                producerTransports.set(socket.id, transport);
+                producerTransports.set(socket.data.userId, transport);
 
                 transport.on('dtlsstatechange', (dtlsState) => {
                     console.log('Producer transport DTLS state changed to', dtlsState);
@@ -109,7 +121,7 @@ export default function(server, router) {
         // producerTransport 연결
         socket.on('connectProducerTransport', async ({ dtlsParameters }, callback) => {
             try {
-                const transport = producerTransports.get(socket.id);
+                const transport = producerTransports.get(socket.data.userId);
                 if (!transport) {
                     console.log("producerTransport not found(connectProducerTransport): Producer 리소스 생성 중 연결 닫음");
                     return;
@@ -127,11 +139,11 @@ export default function(server, router) {
         });
 
         // 미디어 전송 시작
-        socket.on('produce', async ({ kind, roomId, rtpParameters }, callback) => {
-            console.log("my_debug produce roomId:", roomId);
+        socket.on('produce', async ({ kind, rtpParameters }, callback) => {
+            console.mine("my_debug produce userId:", socket.data.userId);
             try {
                 let isSecond=false;
-                const transport = producerTransports.get(socket.id);
+                const transport = producerTransports.get(socket.data.userId);
                 if (!transport) {
                     console.log("producerTransport not found(produce):");
                     return;
@@ -140,20 +152,20 @@ export default function(server, router) {
 
                 const newProducer = await transport.produce({ kind, rtpParameters });
 
-                if (!producers.has(socket.id)) producers.set(socket.id, new Map()); // audio/video 중 첫번 째 producer 전달
+                if (!producers.has(socket.data.userId)) producers.set(socket.data.userId, new Map()); // audio/video 중 첫번 째 producer 전달
                 else isSecond=true; // 두번째 전달
-                producers.get(socket.id).set(kind, newProducer);
+                producers.get(socket.data.userId).set(kind, newProducer);
 
                 console.log('Producer created:', newProducer.id, 'kind:', kind);
 
                 newProducer.on('transportclose', () => {
                     console.log('Producer transport closed for kind:', kind);
-                    producers.get(socket.id)?.delete(kind);
+                    producers.get(socket.data.userId)?.delete(kind);
                 });
 
                 if (isSecond){ // audio+video producer 기존 consumer들에게 알림
                     socket.broadcast.emit('newProducer', {
-                        // socketId: socket.id,
+                        // socketId: socket.data.userId,
                         // streams:[
                         //     {
                         //         kind,
@@ -184,9 +196,9 @@ export default function(server, router) {
                     preferUdp: true,
                 });
 
-                console.log('Consumer transport created:', transport.id, 'for client:', socket.id);
+                console.log('Consumer transport created:', transport.id, 'for client:', socket.data.userId);
 
-                consumerTransports.set(socket.id, transport);
+                consumerTransports.set(socket.data.userId, transport);
 
                 transport.on('dtlsstatechange', (dtlsState) => {
                     console.log('Consumer transport DTLS state changed to', dtlsState);
@@ -210,7 +222,7 @@ export default function(server, router) {
 
         socket.on('connectConsumerTransport', async ({ dtlsParameters }, callback) => {
             try {
-                const transport = consumerTransports.get(socket.id);
+                const transport = consumerTransports.get(socket.data.userId);
                 if (!transport) {
                     console.log("consumerTransport not found(connectConsumerTransport): Consumer 리소스 생성 중 연결 닫음");
                     return;
@@ -218,7 +230,7 @@ export default function(server, router) {
                 }
 
                 await transport.connect({ dtlsParameters });
-                console.log('Consumer transport connected for client:', socket.id);
+                console.log('Consumer transport connected for client:', socket.data.userId);
 
                 if (callback) callback({ success: true });
             } catch (error) {
@@ -248,7 +260,7 @@ export default function(server, router) {
         socket.on('getProducers', (callback) => {
             const list = [];
 
-            for (const [socketId, kindMap] of producers.entries()) {
+            for (const [userId, kindMap] of producers.entries()) {
                 const streams = [];
 
                 for (const [kind, producer] of kindMap.entries()) {
@@ -259,7 +271,7 @@ export default function(server, router) {
                 }
 
                 list.push({
-                    socketId,
+                    userId,
                     streams
                 });
             }
@@ -302,7 +314,7 @@ export default function(server, router) {
                     throw new Error('Cannot consume with current RTP capabilities');
                 }
 
-                const transport = consumerTransports.get(socket.id);
+                const transport = consumerTransports.get(socket.data.userId);
                 if (!transport) {
                     console.log('Consumer transport not found(not created)')
                     return;
@@ -314,19 +326,33 @@ export default function(server, router) {
                     paused: true,
                 });
 
-                if (!consumers.has(socket.id)) consumers.set(socket.id, new Map());
-                consumers.get(socket.id).set(producerId, consumer);
+                if (!consumers.has(socket.data.userId)) consumers.set(socket.data.userId, new Map());
+                consumers.get(socket.data.userId).set(producerId, consumer);
 
 
                 consumer.on('transportclose', () => {
-                    console.log("CALLED consumer.on('transportclose', () => {}", consumers.size);
-                    consumers.get(socket.id)?.delete(socket.id);
-                    console.log("CALLED2 consumer.on('transportclose', () => {}", consumers.size);
+                    const userConsumers = consumers.get(socket.data.userId);
+                    if (userConsumers) {
+                        userConsumers.delete(producerId); // 해당 producerId만 제거
+
+                        if (userConsumers.size === 0) {
+                            consumers.delete(socket.data.userId); // 더 이상 없으면 user 자체도 삭제?
+                        }
+                    }
+                    // console.mine("CALLED2 consumer.on('transportclose', () => {}", consumers.size, socket.data.userId);
                 });
+
                 consumer.on('producerclose', () => {
-                    consumers.delete(socket.id);
+                    const userConsumers = consumers.get(socket.data.userId);
+                    if (userConsumers) {
+                        userConsumers.delete(producerId);
+                        if (userConsumers.size === 0) {
+                            consumers.delete(socket.data.userId);
+                        }
+                    }
                     socket.emit('producerClosed');
                 });
+
 
                 callback({
                     id: consumer.id,
@@ -356,15 +382,15 @@ export default function(server, router) {
 
 
         // socket.on('setConsumerPreferredLayers', async ({ consumerId, spatialLayer, temporalLayer }) => {
-        //     const consumer = consumers.get(socket.id);
+        //     const consumer = consumers.get(socket.data.userId);
         //
         //     if (!consumer) {
-        //         console.warn(`No consumer found for socket ${socket.id}`);
+        //         console.warn(`No consumer found for socket ${socket.data.userId}`);
         //         return;
         //     }
         //
         //     if (consumer.id !== consumerId) {
-        //         console.warn(`Mismatched consumerId for socket ${socket.id}`);
+        //         console.warn(`Mismatched consumerId for socket ${socket.data.userId}`);
         //         return;
         //     }
         //

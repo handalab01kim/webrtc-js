@@ -2,13 +2,14 @@ import React, {useEffect, useRef, useState} from 'react';
 // import {io} from 'socket.io-client';
 // import {serverUrl} from "../config/config.js";
 import { useStreamStore } from '../store/streamStore'; 
-import { socket } from "../components/WebSocket";
+import { getConnectedSocket, getCurrentUserId } from "../components/WebSocket";
 
 
 const mediasoupClient = await import('mediasoup-client');
 
 // function Consumer({remoteStreams, onStreams}) {
-function Consumer() {
+function Consumer({myUserId}) {
+    const socket = getConnectedSocket(myUserId);
     const consumerTransportRef = useRef(null); // 하나의 transport로 multiplexing
     const consumerRefs = useRef(new Map());
     const {remoteStreams,setRemoteStreams,addRemoteStreams,deleteRemoteStream} = useStreamStore(); 
@@ -64,8 +65,8 @@ function Consumer() {
         // - 각 producer(video, audio)에 대해 consume
         const streamsMap = new Map();
 
-        for (const { socketId, streams } of producers) {
-            if(socketId==socket.id) continue; // 자기 자신의 producer consume 하지 않음 // 현재는 producer, consumer 소켓 각자 열기에 작동하지 않음
+        for (const { userId, streams } of producers) {
+            if(userId==getCurrentUserId()) continue; // 자기 자신의 producer consume 하지 않음 // 현재는 producer, consumer 소켓 각자 열기에 작동하지 않음
             const mediaStream = new MediaStream();
             for (const { kind, producerId } of streams) {
                 const { id, rtpParameters } = await new Promise((resolve, reject) => {
@@ -80,10 +81,10 @@ function Consumer() {
                 consumerRefs.current.set(id, consumer);
                 mediaStream.addTrack(consumer.track);
             }
-            streamsMap.set(socketId, mediaStream);
+            streamsMap.set(userId, mediaStream);
         }
         // producerList = producers; // producer 리스트 저장(후에 갱신 시 비교 위함) => remoteStreams
-        const newRemoteStreams = Array.from(streamsMap.entries()).map(([socketId, stream]) => ({ socketId, stream }));
+        const newRemoteStreams = Array.from(streamsMap.entries()).map(([userId, stream]) => ({ userId, stream }));
         setRemoteStreams([...newRemoteStreams]);
     };
 
@@ -99,10 +100,10 @@ function Consumer() {
         // - 각 producer(video, audio)에 대해 consume
         const streamsMap = new Map();
 
-        for (const { socketId, streams } of producers) {
-            if(remoteStreams.some(p=>p.socketId==socketId)) // 존재하는 producer면 continue
+        for (const { userId, streams } of producers) {
+            if(remoteStreams.some(p=>p.userId==userId)) // 존재하는 producer면 continue
                 continue;
-            if(socketId==socket.id) continue; // 자기 자신의 producer consume 하지 않음
+            if(userId==getCurrentUserId()) continue; // 자기 자신의 producer consume 하지 않음
             const mediaStream = new MediaStream();
             for (const { kind, producerId } of streams) {
                 const { id, rtpParameters } = await new Promise((resolve, reject) => {
@@ -117,10 +118,10 @@ function Consumer() {
                 consumerRefs.current.set(id, consumer);
                 mediaStream.addTrack(consumer.track);
             }
-            streamsMap.set(socketId, mediaStream);
+            streamsMap.set(userId, mediaStream);
         }
 
-        const newRemoteStreams = Array.from(streamsMap.entries()).map(([socketId, stream]) => ({ socketId, stream }));
+        const newRemoteStreams = Array.from(streamsMap.entries()).map(([userId, stream]) => ({ userId, stream }));
         setRemoteStreams([...remoteStreams.concat(newRemoteStreams)]);
         // addRemoteStreams([...newRemoteStreams]);
     };
@@ -132,8 +133,8 @@ function Consumer() {
     //         headers: { 'Content-Type': 'application/json' }
     //     });
     // };
-    const deleteProducer = async (socketId)=>{
-        deleteRemoteStream(socketId);
+    const deleteProducer = async (userId)=>{
+        deleteRemoteStream(userId);
     };
 
     useEffect(() => {
@@ -151,8 +152,8 @@ function Consumer() {
                 
                 // producer 추가/제거 이벤트 등록
                 socket.on("newProducer", ()=>{renewProducers(device, consumerTransport);});
-                socket.on("producerClosed", (socketId)=>{
-                    deleteProducer(socketId);
+                socket.on("producerClosed", (userId)=>{
+                    deleteProducer(userId);
                     // alert("TEST");
                 });
             } catch (e) {

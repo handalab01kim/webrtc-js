@@ -1,29 +1,19 @@
 import React from 'react';
 import Producer from './components/Producer.jsx';
 import Consumer from './components/Consumer.jsx';
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import './styles.css';
 import CamChat from "./pages/CamChat.jsx";
 
 function App() {
-    return (
-        <CamChat/>
-        // <BrowserRouter>
-        //     <nav style ={{display: 'flex', flexDirection: 'column'}}>
-        //         <Link to="/" style={{display: 'inline'}}>Home</Link>
-        //         <Link to="/consumer" style={{display: 'inline'}}>Consumer</Link>
-        //         <Link to="/producer" style={{display: 'inline'}}>Producer</Link>
-        //     </nav>
-        //     <Routes>
-        //         <Route path="/" element={<h1>Home</h1>} />
-        //         <Route path="/consumer" element={<Consumer />} />
-        //         <Route path="/producer" element={<Producer />} />
-        //         <Route path="*" element={
-        //                 <Link to="/">go home</Link>
-        //         } />
-        //     </Routes>
-        // </BrowserRouter>
-    );
+  return (
+    <Router>
+      <Routes>
+        <Route path="/:id" element={<CamChat />} />
+        <Route path="*" element={<div>not found!</div>} /> {/*404*/}
+      </Routes>
+    </Router>
+  );
 }
 
 export default App;
