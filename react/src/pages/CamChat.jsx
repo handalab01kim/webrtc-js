@@ -3,6 +3,7 @@ import Producer from '../components/Producer'; // 기존 App 컴포넌트를 Pro
 import Consumer from '../components/Consumer';
 import { useStreamStore } from '../store/streamStore'; 
 import { useParams } from 'react-router-dom';
+import RemoteVideo from '../components/RemoteVideo';
 
 function CamChat() {
     const { id } = useParams(); // 주소로 주어진 id 값
@@ -33,18 +34,19 @@ function CamChat() {
             { remoteStreams.length==0 ? (<div>Loading...</div>
             ):(
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
-                {remoteStreams.map(({ socketId, stream }) => (
-                    <video
-                        key={socketId}
-                        autoPlay
-                        playsInline
-                        controls
-                        muted
-                        style={{ width: '100%', maxWidth: '320px', border: '1px solid #ccc' }}
-                        ref={(video) => {
-                            if (video && stream) video.srcObject = stream;
-                        }}
-                    />
+                {remoteStreams.map(({ userId, stream }) => (
+                    // <video
+                    //     key={userId}
+                    //     autoPlay
+                    //     playsInline
+                    //     controls
+                    //     muted
+                    //     style={{ width: '100%', maxWidth: '320px', border: '1px solid #ccc' }}
+                    //     ref={(video) => {
+                    //         if (video && stream) video.srcObject = stream;
+                    //     }}
+                    // />
+                    <RemoteVideo key={userId} userId={userId} stream={stream} />
                 ))}
             </div>
             )}
