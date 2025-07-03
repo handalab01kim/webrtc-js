@@ -15,9 +15,11 @@ export default function(server, router) {
         console.log('Client connected:', socket.id);
 
         socket.on('disconnect', () => {
-            console.log('Client disconnected:', socket.id);
-            console.log("@@@1", producers.size)
-            console.log("@@@2", producerTransports.size)
+            console.mine('Client disconnected:', socket.id);
+            console.mine("@@@producers.size", producers.size)
+            console.mine("@@@producerTransports.size", producerTransports.size)
+            console.mine("@@@consumers", consumers.size)
+            console.mine("@@@consumerTransports", consumerTransports.size)
 
             const consumerTransport = consumerTransports.get(socket.id);
             if (consumerTransport) {
