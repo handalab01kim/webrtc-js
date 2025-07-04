@@ -122,8 +122,8 @@ function Consumer({myUserId}) {
         }
 
         const newRemoteStreams = Array.from(streamsMap.entries()).map(([userId, stream]) => ({ userId, stream }));
-        setRemoteStreams([...remoteStreams.concat(newRemoteStreams)]);
-        // addRemoteStreams([...newRemoteStreams]);
+        // setRemoteStreams([...remoteStreams.concat(newRemoteStreams)]);
+        addRemoteStreams(newRemoteStreams);
     };
 
     // const logToServer = (args) => {

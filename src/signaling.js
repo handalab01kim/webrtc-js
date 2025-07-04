@@ -18,19 +18,29 @@ export default function(server, router) {
         socket.data.userId = userId;
         console.mine('Client connected:', socket.data.userId);
         setTimeout(()=>{
-            console.mine("###producers.size", producers.size, socket.data.userId)
-            console.mine("###producerTransports.size", producerTransports.size, socket.data.userId)
-            console.mine("###consumers", consumers.size, socket.data.userId)
-            console.mine("###consumerTransports", consumerTransports.size, socket.data.userId)
+            // console.mine("###producers.size", producers.size, socket.data.userId)
+            // console.mine("###producerTransports.size", producerTransports.size, socket.data.userId)
+            // console.mine("###consumers", consumers.size, socket.data.userId)
+            // console.mine("###consumerTransports", consumerTransports.size, socket.data.userId)
+            process.stdout.write("### ",socket.data.userId," ###producers.LIST  ")
+            for (const [userId, kindMap] of producers.entries()) {
+                process.stdout.write(userId," ")
+            }
+            console.mine("");
         }, 1500);
 
         socket.on('disconnect', () => {
+            console.mine('Client disconnected:', socket.data.userId);
             setTimeout(()=>{
-                console.mine('Client disconnected:', socket.data.userId);
-                console.mine("@@@producers.size", producers.size, socket.data.userId)
-                console.mine("@@@producerTransports.size", producerTransports.size, socket.data.userId)
-                console.mine("@@@consumers", consumers.size, socket.data.userId)
-                console.mine("@@@consumerTransports", consumerTransports.size, socket.data.userId)
+                // console.mine("@@@producers.size", producers.size, socket.data.userId)
+                // console.mine("@@@producerTransports.size", producerTransports.size, socket.data.userId)
+                // console.mine("@@@consumers", consumers.size, socket.data.userId)
+                // console.mine("@@@consumerTransports", consumerTransports.size, socket.data.userId)
+                process.stdout.write("### ",socket.data.userId," ###producers.LIST  ")
+                for (const [userId, kindMap] of producers.entries()) {
+                    process.stdout.write(userId," ")
+                }
+                console.mine("");
             }, 1500);
 
             const consumerTransport = consumerTransports.get(socket.data.userId);
@@ -140,7 +150,7 @@ export default function(server, router) {
 
         // 미디어 전송 시작
         socket.on('produce', async ({ kind, rtpParameters }, callback) => {
-            console.mine("my_debug produce userId:", socket.data.userId);
+            // console.mine("my_debug produce userId:", socket.data.userId);
             try {
                 let isSecond=false;
                 const transport = producerTransports.get(socket.data.userId);
@@ -350,7 +360,7 @@ export default function(server, router) {
                             consumers.delete(socket.data.userId);
                         }
                     }
-                    socket.emit('producerClosed');
+                    // socket.emit('producerClosed');
                 });
 
 

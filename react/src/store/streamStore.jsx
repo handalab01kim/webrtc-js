@@ -3,10 +3,11 @@ import { create } from 'zustand';
 export const useStreamStore = create((set,get) => ({
     remoteStreams: [],
     setRemoteStreams: (newStreamsList) => set({ remoteStreams: newStreamsList }),
-    // addRemoteStreams: (newStreamsList) => {
-    //     const currentStreams = get().remoteStreams;
-    //     set({ remoteStreams: currentStreams.concat(newStreamsList) });
-    // },    
+    addRemoteStreams: (newStreamsList) => {
+        const currentStreams = get().remoteStreams;
+        // set({ remoteStreams: currentStreams.concat(newStreamsList) });
+        set({ remoteStreams: [...currentStreams, ...newStreamsList] });
+    },    
     deleteRemoteStream: (droppedUserId) => {
         // console.log("STORE_DEBUG1",droppedUserId)
         // console.log("STORE_DEBUG2",get().remoteStreams)

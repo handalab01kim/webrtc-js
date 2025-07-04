@@ -8,13 +8,13 @@ import RemoteVideo from '../components/RemoteVideo';
 function CamChat() {
     const { id } = useParams(); // 주소로 주어진 id 값
     const {remoteStreams, deleteAllRemoteStream} = useStreamStore(); 
-    // useEffect(()=>{
-    //     setTimeout(()=>{
-    //         console.log("😎", remoteStreams)
-    //     },2000);
-    //     return ()=>{
-    //     };
-    // }, [remoteStreams]);
+    useEffect(()=>{
+        setTimeout(()=>{
+            console.log("😎", remoteStreams)
+        },1000);
+        return ()=>{
+        };
+    }, [remoteStreams]);
     useEffect(()=>{
         // rerendering: auto
         return ()=>{
@@ -46,7 +46,9 @@ function CamChat() {
                     //         if (video && stream) video.srcObject = stream;
                     //     }}
                     // />
+                    (console.log("😒",userId, "😶‍🌫️🤐😯😥😣😏🙄", remoteStreams),
                     <RemoteVideo key={userId} userId={userId} stream={stream} />
+                    )
                 ))}
             </div>
             )}
